@@ -252,8 +252,22 @@
       content
     });
 
-    if (!error) { input.value = ''; loadAdminMessages(); }
-    else alert('Could not send: ' + error.message);
+    if (!error) {
+      input.value = '';
+      loadAdminMessages();
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selectedClient.email,
+          toName: selectedClient.business_name || selectedClient.contact_name,
+          subject: 'New message from BINet Funnel Digitals',
+          message: escapeHtml(content)
+        })
+      }).catch(() => {});
+    } else {
+      alert('Could not send: ' + error.message);
+    }
   }
 
   async function loadAdminReports() {
@@ -313,6 +327,16 @@
       document.getElementById('report-period').value = '';
       fileInput.value = '';
       loadAdminReports();
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selectedClient.email,
+          toName: selectedClient.business_name || selectedClient.contact_name,
+          subject: 'New report available — BINet Funnel Digitals',
+          message: 'A new report "' + escapeHtml(title) + '" has been uploaded to your dashboard. Log in to view it.'
+        })
+      }).catch(() => {});
     } else {
       alert('Could not save report: ' + error.message);
     }

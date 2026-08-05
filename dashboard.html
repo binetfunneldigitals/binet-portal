@@ -158,6 +158,16 @@
     if (!error) {
       input.value = '';
       loadMessages();
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'binet.enquiries@gmail.com',
+          toName: 'BINet Admin',
+          subject: 'New message from ' + (currentUser.business_name || currentUser.email),
+          message: escapeHtml(content)
+        })
+      }).catch(() => {});
     } else {
       alert('Could not send message: ' + error.message);
     }
@@ -222,10 +232,20 @@
       status: 'open'
     });
 
-    if (!error) {
+   if (!error) {
       document.getElementById('request-title').value = '';
       document.getElementById('request-description').value = '';
       loadRequests();
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'binet.enquiries@gmail.com',
+          toName: 'BINet Admin',
+          subject: 'New request from ' + (currentUser.business_name || currentUser.email),
+          message: escapeHtml(title) + (description ? ': ' + escapeHtml(description) : '')
+        })
+      }).catch(() => {});
     } else {
       alert('Could not submit request: ' + error.message);
     }
