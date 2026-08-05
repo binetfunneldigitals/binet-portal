@@ -10,37 +10,347 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-config.js"></script>
 </head>
-<body>
-<div class="wrap" style="padding:60px 24px;">
-  <p class="eyebrow">Admin Area</p>
-  <h1 style="font-size:2rem; margin:14px 0;">Welcome, admin.</h1>
-  <p id="status" style="color:var(--slate); margin-bottom:24px;">Checking your session...</p>
-  <button id="logout-btn" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; display:none;">Log Out</button>
+<body class="dash-shell">
+
+<div class="dash-topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.png" alt="BINet Funnel Digitals logo" style="height:32px;">
+      <span>BINet Funnel Digitals — Admin</span>
+    </a>
+    <div class="dash-user">
+      <span id="admin-label">Loading...</span>
+      <button id="logout-btn" class="btn btn-outline">Log Out</button>
+    </div>
+  </div>
 </div>
+
+<div class="admin-layout">
+  <div class="admin-sidebar">
+    <input type="text" id="client-search" class="client-search" placeholder="Search clients...">
+    <div id="client-list">
+      <p class="empty-state">Loading clients...</p>
+    </div>
+  </div>
+
+  <div class="admin-content">
+    <div class="admin-stats">
+      <div class="stat-card">
+        <div class="num" id="stat-clients">0</div>
+        <div class="label">Total Clients</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-open-requests">0</div>
+        <div class="label">Open Requests</div>
+      </div>
+    </div>
+
+    <div id="client-panel">
+      <p class="no-client-selected">Select a client from the left to view their messages, reports, and requests.</p>
+    </div>
+  </div>
+</div>
+
 <script>
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const statusEl = document.getElementById('status');
-  const logoutBtn = document.getElementById('logout-btn');
+  let allClients = [];
+  let selectedClient = null;
+
+  function timeAgo(dateStr) {
+    const diff = (Date.now() - new Date(dateStr)) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
 
   (async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) {
-      window.location.href = 'login.html';
-      return;
-    }
-    const { data: profile } = await supabaseClient.from('profiles').select('role,email').eq('id', session.user.id).single();
-    if (!profile || profile.role !== 'admin') {
-      window.location.href = 'login.html';
-      return;
-    }
-    statusEl.textContent = 'Logged in as ' + profile.email + '. This is your admin dashboard — full version coming in the next build step.';
-    logoutBtn.style.display = 'inline-flex';
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const { data: profile, error } = await supabaseClient
+      .from('profiles').select('*').eq('id', session.user.id).single();
+
+    if (error || !profile || profile.role !== 'admin') { window.location.href = 'login.html'; return; }
+
+    document.getElementById('admin-label').textContent = profile.email;
+    loadClients();
   })();
 
-  logoutBtn.addEventListener('click', async () => {
+  document.getElementById('logout-btn').addEventListener('click', async () => {
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });
+
+  async function loadClients() {
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('role', 'client')
+      .order('created_at', { ascending: false });
+
+    if (error) { document.getElementById('client-list').innerHTML = '<p class="empty-state">Error loading clients.</p>'; return; }
+
+    allClients = data || [];
+    document.getElementById('stat-clients').textContent = allClients.length;
+    renderClientList(allClients);
+    loadOpenRequestsCount();
+  }
+
+  function renderClientList(clients) {
+    const listEl = document.getElementById('client-list');
+    if (clients.length === 0) {
+      listEl.innerHTML = '<p class="empty-state">No clients yet.</p>';
+      return;
+    }
+    listEl.innerHTML = clients.map(c => `
+      <div class="client-item ${selectedClient && selectedClient.id === c.id ? 'active' : ''}" data-id="${c.id}">
+        <h4>${escapeHtml(c.business_name || c.email)}</h4>
+        <p>${escapeHtml(c.contact_name || c.email)}</p>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.client-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const client = allClients.find(c => c.id === item.dataset.id);
+        selectClient(client);
+      });
+    });
+  }
+
+  document.getElementById('client-search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = allClients.filter(c =>
+      (c.business_name || '').toLowerCase().includes(q) ||
+      (c.contact_name || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q)
+    );
+    renderClientList(filtered);
+  });
+
+  async function loadOpenRequestsCount() {
+    const { count } = await supabaseClient
+      .from('requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'open');
+    document.getElementById('stat-open-requests').textContent = count || 0;
+  }
+
+  function selectClient(client) {
+    selectedClient = client;
+    renderClientList(document.getElementById('client-search').value ? allClients.filter(c => true) : allClients);
+    document.querySelectorAll('.client-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === client.id);
+    });
+    renderClientPanel();
+  }
+
+  function renderClientPanel() {
+    const panel = document.getElementById('client-panel');
+    panel.innerHTML = `
+      <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
+      <p class="sub" style="margin-bottom:24px;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="messages">Messages</button>
+        <button class="tab-btn" data-tab="reports">Reports</button>
+        <button class="tab-btn" data-tab="requests">Requests</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-messages">
+        <div class="card-box">
+          <div id="admin-message-thread" class="message-thread">
+            <p class="empty-state">Loading...</p>
+          </div>
+          <form id="admin-message-form" class="message-input-row">
+            <input type="text" id="admin-message-input" placeholder="Reply to ${escapeHtml(selectedClient.business_name || selectedClient.email)}..." required>
+            <button type="submit" class="btn btn-green">Send</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-reports">
+        <div class="card-box">
+          <div id="admin-reports-list"><p class="empty-state">Loading...</p></div>
+          <div class="upload-row">
+            <div class="field">
+              <label>Report title</label>
+              <input type="text" id="report-title" placeholder="e.g. July Performance Report">
+            </div>
+            <div class="field">
+              <label>Period</label>
+              <input type="text" id="report-period" placeholder="e.g. July 2026">
+            </div>
+            <div class="field">
+              <label>File</label>
+              <input type="file" id="report-file">
+            </div>
+            <button class="btn btn-green" id="upload-report-btn">Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-requests">
+        <div class="card-box">
+          <div id="admin-requests-list"><p class="empty-state">Loading...</p></div>
+        </div>
+      </div>
+    `;
+
+    panel.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        panel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        panel.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        panel.querySelector('#tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    document.getElementById('admin-message-form').addEventListener('submit', sendAdminMessage);
+    document.getElementById('upload-report-btn').addEventListener('click', uploadReport);
+
+    loadAdminMessages();
+    loadAdminReports();
+    loadAdminRequests();
+  }
+
+  async function loadAdminMessages() {
+    const { data, error } = await supabaseClient
+      .from('messages').select('*')
+      .eq('client_id', selectedClient.id)
+      .order('created_at', { ascending: true });
+
+    const thread = document.getElementById('admin-message-thread');
+    if (error || !data || data.length === 0) {
+      thread.innerHTML = '<p class="empty-state">No messages yet with this client.</p>';
+      return;
+    }
+    thread.innerHTML = data.map(m => `
+      <div class="msg ${m.sender_role === 'admin' ? 'client' : 'admin'}">
+        ${escapeHtml(m.content)}
+        <span class="msg-time">${timeAgo(m.created_at)}</span>
+      </div>
+    `).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function sendAdminMessage(e) {
+    e.preventDefault();
+    const input = document.getElementById('admin-message-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    const { error } = await supabaseClient.from('messages').insert({
+      client_id: selectedClient.id,
+      sender_role: 'admin',
+      content
+    });
+
+    if (!error) { input.value = ''; loadAdminMessages(); }
+    else alert('Could not send: ' + error.message);
+  }
+
+  async function loadAdminReports() {
+    const { data, error } = await supabaseClient
+      .from('reports').select('*')
+      .eq('client_id', selectedClient.id)
+      .order('uploaded_at', { ascending: false });
+
+    const list = document.getElementById('admin-reports-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No reports uploaded for this client yet.</p>';
+      return;
+    }
+    list.innerHTML = data.map(r => `
+      <div class="list-item">
+        <div>
+          <h4>${escapeHtml(r.title)}</h4>
+          <p>${r.period ? escapeHtml(r.period) + ' · ' : ''}${timeAgo(r.uploaded_at)}</p>
+        </div>
+        ${r.file_url ? `<a href="${escapeHtml(r.file_url)}" target="_blank" rel="noopener" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7;">View</a>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function uploadReport() {
+    const title = document.getElementById('report-title').value.trim();
+    const period = document.getElementById('report-period').value.trim();
+    const fileInput = document.getElementById('report-file');
+    const file = fileInput.files[0];
+    const btn = document.getElementById('upload-report-btn');
+
+    if (!title) { alert('Please add a report title.'); return; }
+
+    btn.textContent = 'Uploading...';
+    let file_url = null;
+
+    if (file) {
+      const filePath = `${selectedClient.id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabaseClient.storage.from('reports').upload(filePath, file);
+      if (uploadError) {
+        alert('File upload failed: ' + uploadError.message);
+        btn.textContent = 'Upload';
+        return;
+      }
+      const { data: urlData } = supabaseClient.storage.from('reports').getPublicUrl(filePath);
+      file_url = urlData.publicUrl;
+    }
+
+    const { error } = await supabaseClient.from('reports').insert({
+      client_id: selectedClient.id,
+      title, period, file_url
+    });
+
+    btn.textContent = 'Upload';
+    if (!error) {
+      document.getElementById('report-title').value = '';
+      document.getElementById('report-period').value = '';
+      fileInput.value = '';
+      loadAdminReports();
+    } else {
+      alert('Could not save report: ' + error.message);
+    }
+  }
+
+  async function loadAdminRequests() {
+    const { data, error } = await supabaseClient
+      .from('requests').select('*')
+      .eq('client_id', selectedClient.id)
+      .order('created_at', { ascending: false });
+
+    const list = document.getElementById('admin-requests-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No requests from this client yet.</p>';
+      return;
+    }
+    list.innerHTML = data.map(r => `
+      <div class="list-item">
+        <div>
+          <h4>${escapeHtml(r.title)}</h4>
+          <p>${escapeHtml(r.description || '')}</p>
+        </div>
+        <select class="status-select" data-id="${r.id}">
+          <option value="open" ${r.status === 'open' ? 'selected' : ''}>Open</option>
+          <option value="in_progress" ${r.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+          <option value="done" ${r.status === 'done' ? 'selected' : ''}>Done</option>
+        </select>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.status-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        await supabaseClient.from('requests').update({ status: sel.value }).eq('id', sel.dataset.id);
+        loadOpenRequestsCount();
+      });
+    });
+  }
 </script>
+
 </body>
 </html>
