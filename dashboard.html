@@ -10,38 +10,233 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-config.js"></script>
 </head>
-<body>
-<div class="wrap" style="padding:60px 24px;">
-  <p class="eyebrow">Your Dashboard</p>
-  <h1 style="font-size:2rem; margin:14px 0;">Welcome.</h1>
-  <p id="status" style="color:var(--slate); margin-bottom:24px;">Checking your session...</p>
-  <button id="logout-btn" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; display:none;">Log Out</button>
+<body class="dash-shell">
+
+<div class="dash-topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.png" alt="BINet Funnel Digitals logo" style="height:32px;">
+      <span>BINet Funnel Digitals</span>
+    </a>
+    <div class="dash-user">
+      <span id="user-label">Loading...</span>
+      <button id="logout-btn" class="btn btn-outline">Log Out</button>
+    </div>
+  </div>
 </div>
+
+<div class="dash-main">
+  <h1 id="welcome-heading">Welcome.</h1>
+  <p class="sub">This is your BINet Funnel Digitals client space — messages, reports, and requests all in one place.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="messages">Messages</button>
+    <button class="tab-btn" data-tab="reports">Reports</button>
+    <button class="tab-btn" data-tab="requests">Requests</button>
+  </div>
+
+  <!-- MESSAGES TAB -->
+  <div class="tab-panel active" id="tab-messages">
+    <div class="card-box">
+      <div id="message-thread" class="message-thread">
+        <p class="empty-state">Loading messages...</p>
+      </div>
+      <form id="message-form" class="message-input-row">
+        <input type="text" id="message-input" placeholder="Type a message..." required>
+        <button type="submit" class="btn btn-green">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- REPORTS TAB -->
+  <div class="tab-panel" id="tab-reports">
+    <div class="card-box">
+      <div id="reports-list">
+        <p class="empty-state">Loading reports...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- REQUESTS TAB -->
+  <div class="tab-panel" id="tab-requests">
+    <div class="card-box">
+      <div id="requests-list">
+        <p class="empty-state">Loading requests...</p>
+      </div>
+      <div class="new-request-form">
+        <p style="font-weight:600; font-size:0.92rem;">Submit a new request</p>
+        <form id="request-form" style="display:flex; flex-direction:column; gap:14px;">
+          <input type="text" id="request-title" placeholder="Request title (e.g. Update Instagram bio)" required>
+          <textarea id="request-description" rows="3" placeholder="Add any details we should know..."></textarea>
+          <button type="submit" class="btn btn-green" style="align-self:flex-start;">Submit Request</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const statusEl = document.getElementById('status');
-  const logoutBtn = document.getElementById('logout-btn');
+  let currentUser = null;
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  function timeAgo(dateStr) {
+    const diff = (Date.now() - new Date(dateStr)) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
 
   (async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) {
-      window.location.href = 'login.html';
-      return;
-    }
-    const { data: profile } = await supabaseClient.from('profiles').select('role,email,business_name').eq('id', session.user.id).single();
-    if (!profile) {
-      window.location.href = 'login.html';
-      return;
-    }
-    const name = profile.business_name || profile.email;
-    statusEl.textContent = 'Logged in as ' + name + '. This is your client dashboard — full version coming in the next build step.';
-    logoutBtn.style.display = 'inline-flex';
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (error || !profile) { window.location.href = 'login.html'; return; }
+
+    currentUser = { id: session.user.id, ...profile };
+    document.getElementById('user-label').textContent = profile.business_name || profile.email;
+    document.getElementById('welcome-heading').textContent = 'Welcome, ' + (profile.contact_name || profile.business_name || 'there') + '.';
+
+    loadMessages();
+    loadReports();
+    loadRequests();
   })();
 
-  logoutBtn.addEventListener('click', async () => {
+  document.getElementById('logout-btn').addEventListener('click', async () => {
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });
+
+  async function loadMessages() {
+    const { data, error } = await supabaseClient
+      .from('messages')
+      .select('*')
+      .eq('client_id', currentUser.id)
+      .order('created_at', { ascending: true });
+
+    const thread = document.getElementById('message-thread');
+    if (error || !data || data.length === 0) {
+      thread.innerHTML = '<p class="empty-state">No messages yet. Say hello!</p>';
+      return;
+    }
+    thread.innerHTML = data.map(m => `
+      <div class="msg ${m.sender_role}">
+        ${escapeHtml(m.content)}
+        <span class="msg-time">${timeAgo(m.created_at)}</span>
+      </div>
+    `).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  document.getElementById('message-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('message-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    const { error } = await supabaseClient.from('messages').insert({
+      client_id: currentUser.id,
+      sender_role: 'client',
+      content
+    });
+
+    if (!error) {
+      input.value = '';
+      loadMessages();
+    } else {
+      alert('Could not send message: ' + error.message);
+    }
+  });
+
+  async function loadReports() {
+    const { data, error } = await supabaseClient
+      .from('reports')
+      .select('*')
+      .eq('client_id', currentUser.id)
+      .order('uploaded_at', { ascending: false });
+
+    const list = document.getElementById('reports-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No reports uploaded yet. They will appear here once available.</p>';
+      return;
+    }
+    list.innerHTML = data.map(r => `
+      <div class="list-item">
+        <div>
+          <h4>${escapeHtml(r.title)}</h4>
+          <p>${r.period ? escapeHtml(r.period) + ' · ' : ''}${timeAgo(r.uploaded_at)}</p>
+        </div>
+        ${r.file_url ? `<a href="${escapeHtml(r.file_url)}" target="_blank" rel="noopener" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7;">View</a>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function loadRequests() {
+    const { data, error } = await supabaseClient
+      .from('requests')
+      .select('*')
+      .eq('client_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    const list = document.getElementById('requests-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No requests yet. Submit one below.</p>';
+      return;
+    }
+    list.innerHTML = data.map(r => `
+      <div class="list-item">
+        <div>
+          <h4>${escapeHtml(r.title)}</h4>
+          <p>${r.description ? escapeHtml(r.description) : ''}</p>
+        </div>
+        <span class="status-badge status-${r.status}">${r.status.replace('_',' ')}</span>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('request-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('request-title').value.trim();
+    const description = document.getElementById('request-description').value.trim();
+    if (!title) return;
+
+    const { error } = await supabaseClient.from('requests').insert({
+      client_id: currentUser.id,
+      title,
+      description,
+      status: 'open'
+    });
+
+    if (!error) {
+      document.getElementById('request-title').value = '';
+      document.getElementById('request-description').value = '';
+      loadRequests();
+    } else {
+      alert('Could not submit request: ' + error.message);
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 </script>
+
 </body>
 </html>
