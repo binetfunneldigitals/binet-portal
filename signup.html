@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Your Account — BINet Funnel Digitals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js"></script>
+<style>
+.login-wrap{
+  min-height:calc(100vh - 74px);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--off-white);
+  padding:40px 20px;
+}
+.login-card{
+  width:100%; max-width:440px;
+  background:var(--white);
+  border:1px solid #E7E9EE;
+  border-radius:16px;
+  padding:40px 34px;
+}
+.login-card .brand-mini{display:flex; align-items:center; gap:10px; margin-bottom:28px;}
+.login-card .brand-mini img{height:34px;}
+.login-card .brand-mini span{font-family:'Space Grotesk',sans-serif; font-weight:600; color:var(--navy);}
+.login-card h1{font-size:1.5rem; margin-bottom:8px;}
+.login-card p.sub{color:var(--slate); font-size:0.92rem; margin-bottom:26px;}
+.login-card form{gap:16px;}
+.login-card button{width:100%; justify-content:center; padding:13px;}
+.field label{font-size:0.86rem; font-weight:600; display:block; margin-bottom:6px;}
+.field input{width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; background:var(--off-white); font-family:'Inter',sans-serif; font-size:0.95rem;}
+#signup-error{
+  display:none; background:#FCEBEB; color:#791F1F;
+  padding:12px 14px; border-radius:8px; font-size:0.86rem; margin-bottom:16px;
+}
+#signup-success{
+  display:none; background:#E9F7F1; color:#0F5D3F;
+  padding:14px; border-radius:8px; font-size:0.9rem; margin-bottom:16px;
+}
+.switch-link{font-size:0.88rem; color:var(--slate); margin-top:20px; text-align:center;}
+.switch-link a{color:var(--green); font-weight:600;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.png" alt="BINet Funnel Digitals logo">
+      <span>BINet Funnel Digitals</span>
+    </a>
+    <nav class="nav-links">
+      <a href="about.html">About</a>
+      <a href="services.html">Services</a>
+      <a href="contact.html">Contact</a>
+      <a href="login.html">Client Login</a>
+    </nav>
+    <a class="btn btn-green" href="https://wa.me/2348117090999" target="_blank" rel="noopener">Chat on WhatsApp</a>
+  </div>
+</header>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="brand-mini">
+      <img src="assets/logo.png" alt="BINet Funnel Digitals logo">
+      <span>BINet Funnel Digitals</span>
+    </div>
+    <h1>Create your account</h1>
+    <p class="sub">Get your own client dashboard in under a minute.</p>
+
+    <div id="signup-error"></div>
+    <div id="signup-success"></div>
+
+    <form id="signup-form">
+      <div class="field">
+        <label for="business_name">Business name</label>
+        <input type="text" id="business_name" required>
+      </div>
+      <div class="field">
+        <label for="contact_name">Your name</label>
+        <input type="text" id="contact_name" required>
+      </div>
+      <div class="field">
+        <label for="phone">Phone number</label>
+        <input type="tel" id="phone" required>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-green" id="signup-btn">Create Account</button>
+    </form>
+
+    <p class="switch-link">Already have an account? <a href="login.html">Log in</a></p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <a class="footer-brand" href="index.html">
+        <img src="assets/logo.png" alt="BINet Funnel Digitals logo">
+        <span>BINet Funnel Digitals</span>
+      </a>
+      <p class="tagline">Visibility. Customers. <b>Growth.</b></p>
+      <div class="footer-links">
+        <a href="https://wa.me/2348117090999" target="_blank" rel="noopener">WhatsApp</a>
+        <a href="mailto:binet.enquiries@gmail.com">Email</a>
+      </div>
+    </div>
+    <p class="copyright">&copy; 2026 BINet Funnel Digitals. All rights reserved.</p>
+  </div>
+</footer>
+
+<script>
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const form = document.getElementById('signup-form');
+  const errorBox = document.getElementById('signup-error');
+  const successBox = document.getElementById('signup-success');
+  const signupBtn = document.getElementById('signup-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+    signupBtn.textContent = 'Creating account...';
+
+    const business_name = document.getElementById('business_name').value.trim();
+    const contact_name = document.getElementById('contact_name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { business_name, contact_name, phone }
+      }
+    });
+
+    if (error) {
+      errorBox.textContent = 'Could not create account: ' + error.message;
+      errorBox.style.display = 'block';
+      signupBtn.textContent = 'Create Account';
+      return;
+    }
+
+    if (data.session) {
+      window.location.href = 'dashboard.html';
+      return;
+    }
+
+    form.style.display = 'none';
+    successBox.textContent = 'Account created! Check ' + email + ' for a confirmation link, then log in.';
+    successBox.style.display = 'block';
+  });
+</script>
+
+</body>
+</html>
