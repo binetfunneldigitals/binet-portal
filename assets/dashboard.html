@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — BINet Funnel Digitals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js"></script>
+</head>
+<body>
+<div class="wrap" style="padding:60px 24px;">
+  <p class="eyebrow">Your Dashboard</p>
+  <h1 style="font-size:2rem; margin:14px 0;">Welcome.</h1>
+  <p id="status" style="color:var(--slate); margin-bottom:24px;">Checking your session...</p>
+  <button id="logout-btn" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; display:none;">Log Out</button>
+</div>
+<script>
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const statusEl = document.getElementById('status');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  (async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      window.location.href = 'login.html';
+      return;
+    }
+    const { data: profile } = await supabaseClient.from('profiles').select('role,email,business_name').eq('id', session.user.id).single();
+    if (!profile) {
+      window.location.href = 'login.html';
+      return;
+    }
+    const name = profile.business_name || profile.email;
+    statusEl.textContent = 'Logged in as ' + name + '. This is your client dashboard — full version coming in the next build step.';
+    logoutBtn.style.display = 'inline-flex';
+  })();
+
+  logoutBtn.addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'login.html';
+  });
+</script>
+</body>
+</html>

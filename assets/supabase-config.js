@@ -1,0 +1,3 @@
+const SUPABASE_URL = "https://piktpjfffzbdeeltvrfy.supabase.co/rest/v1/";
+
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpa3RwamZmZnpiZGVlbHR2cmZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4ODA2MzIsImV4cCI6MjEwMTQ1NjYzMn0.cLy3UiPmX72SFbalmVU0wdKfeSO1ffxbHw1iCZpg4ig";
