@@ -205,6 +205,19 @@ function renderBroadcastPanel() {
       <h1 style="font-size:1.5rem; margin-bottom:4px;">New Broadcast</h1>
       <p class="sub" style="margin-bottom:24px;">Send one email to some or all of your clients at once.</p>
       <div class="card-box">
+        <div style="display:flex; gap:20px; margin-bottom:20px;">
+          <label style="font-size:0.88rem; display:flex; align-items:center; gap:6px;"><input type="radio" name="compose-mode" value="custom" checked> Write custom message</label>
+          <label style="font-size:0.88rem; display:flex; align-items:center; gap:6px;"><input type="radio" name="compose-mode" value="template"> Use a saved template</label>
+        </div>
+
+        <div id="template-picker-wrap" style="display:none; margin-bottom:20px;">
+          <label style="font-size:0.86rem; font-weight:600; display:block; margin-bottom:6px;">Choose template</label>
+          <select id="template-picker" class="status-select" style="width:100%; padding:12px 14px;">
+            <option value="">Loading templates...</option>
+          </select>
+        </div>
+
+        <div id="custom-compose-wrap">
         <div style="margin-bottom:16px;">
           <label style="font-size:0.86rem; font-weight:600; display:block; margin-bottom:6px;">Subject</label>
           <input type="text" id="broadcast-subject" placeholder="e.g. New service launching this month" style="width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; background:var(--off-white);">
@@ -216,6 +229,8 @@ function renderBroadcastPanel() {
           </div>
           <div id="broadcast-editor" style="background:var(--white); border-radius:8px; border:1px solid #DDE1E7; min-height:200px;"></div>
           <p id="image-upload-status" style="font-size:0.8rem; color:var(--slate); margin-top:6px; display:none;">Uploading image...</p>
+        </div>
+        </div>
         <div style="margin-bottom:16px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <label style="font-size:0.86rem; font-weight:600;">Recipients (${allClients.length})</label>
@@ -286,6 +301,15 @@ quill = new Quill('#broadcast-editor', {
         quill.insertText(range.index + file.name.length, ' ');
       };
     });
+    loadBrevoTemplates();
+
+    document.querySelectorAll('input[name="compose-mode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const useTemplate = e.target.value === 'template';
+        document.getElementById('template-picker-wrap').style.display = useTemplate ? 'block' : 'none';
+        document.getElementById('custom-compose-wrap').style.display = useTemplate ? 'none' : 'block';
+      });
+    });
     document.getElementById('toggle-all-recipients').addEventListener('click', () => {
       const boxes = document.querySelectorAll('.broadcast-recipient');
       const anyUnchecked = Array.from(boxes).some(b => !b.checked);
@@ -305,8 +329,7 @@ quill = new Quill('#broadcast-editor', {
   } 
 
 async function sendBroadcast() {
-    const subject = document.getElementById('broadcast-subject').value.trim();
-    const message = makeImagesResponsive(quill.root.innerHTML.trim());
+    const useTemplate = document.querySelector('input[name="compose-mode"]:checked').value === 'template';
     const resultEl = document.getElementById('broadcast-result');
     const btn = document.getElementById('send-broadcast-btn');
 
@@ -315,8 +338,22 @@ async function sendBroadcast() {
       name: cb.dataset.name
     }));
 
-    if (!subject || !message || message === '<p><br></p>') { alert('Please fill in both subject and message.'); return; }
     if (recipients.length === 0) { alert('Select at least one recipient.'); return; }
+
+    let payload = { recipients };
+
+    if (useTemplate) {
+      const templateId = document.getElementById('template-picker').value;
+      if (!templateId) { alert('Please choose a template.'); return; }
+      payload.templateId = templateId;
+    } else {
+      const subject = document.getElementById('broadcast-subject').value.trim();
+      const message = makeImagesResponsive(quill.root.innerHTML.trim());
+      if (!subject || !message || message === '<p><br></p>') { alert('Please fill in both subject and message.'); return; }
+      payload.subject = subject;
+      payload.message = message;
+      payload.isHtml = true;
+    }
 
     btn.textContent = 'Sending...';
     resultEl.textContent = '';
@@ -327,7 +364,7 @@ async function sendBroadcast() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + currentSession.access_token
       },
-      body: JSON.stringify({ recipients, subject, message, isHtml: true })
+      body: JSON.stringify(payload)
     });
 
     const result = await res.json();
@@ -341,6 +378,22 @@ async function sendBroadcast() {
 
     resultEl.style.color = '#0F7A4C';
     resultEl.textContent = `Sent to ${result.sent} of ${result.total} recipients` + (result.failed > 0 ? ` (${result.failed} failed)` : '') + '.';
+  }
+  async function loadBrevoTemplates() {
+    const select = document.getElementById('template-picker');
+    try {
+      const res = await fetch('/api/list-templates', {
+        headers: { 'Authorization': 'Bearer ' + currentSession.access_token }
+      });
+      const result = await res.json();
+      if (!res.ok || !result.templates || result.templates.length === 0) {
+        select.innerHTML = '<option value="">No saved templates found</option>';
+        return;
+      }
+      select.innerHTML = result.templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    } catch {
+      select.innerHTML = '<option value="">Could not load templates</option>';
+    }
   }
   function renderClientPanel() {
     const panel = document.getElementById('client-panel');

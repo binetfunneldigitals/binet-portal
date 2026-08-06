@@ -34,9 +34,12 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
- const { recipients, subject, message, isHtml } = req.body;
-  if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !subject || !message) {
-    return res.status(400).json({ error: 'Missing required fields' });
+ const { recipients, subject, message, isHtml, templateId } = req.body;
+  if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: 'Missing recipients' });
+  }
+  if (!templateId && (!subject || !message)) {
+    return res.status(400).json({ error: 'Missing subject or message' });
   }
 
   let sent = 0;
@@ -44,6 +47,19 @@ export default async function handler(req, res) {
 
   for (const r of recipients) {
     try {
+      const payload = templateId
+        ? {
+            sender: { name: 'BINet Funnel Digitals', email: 'binet.enquiries@gmail.com' },
+            to: [{ email: r.email, name: r.name || r.email }],
+            templateId: templateId
+          }
+        : {
+            sender: { name: 'BINet Funnel Digitals', email: 'binet.enquiries@gmail.com' },
+            to: [{ email: r.email, name: r.name || r.email }],
+            subject: subject,
+            htmlContent: buildBrandedHtml(subject, message, isHtml)
+          };
+
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -51,12 +67,7 @@ export default async function handler(req, res) {
           'api-key': process.env.BREVO_API_KEY,
           'content-type': 'application/json'
         },
-        body: JSON.stringify({
-          sender: { name: 'BINet Funnel Digitals', email: 'binet.enquiries@gmail.com' },
-          to: [{ email: r.email, name: r.name || r.email }],
-          subject: subject,
-          htmlContent: buildBrandedHtml(subject, message, isHtml)
-        })
+        body: JSON.stringify(payload)
       });
       if (response.ok) sent++; else failed++;
     } catch {
