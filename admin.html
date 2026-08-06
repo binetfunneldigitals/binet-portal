@@ -165,7 +165,18 @@ document.getElementById('broadcast-btn').addEventListener('click', renderBroadca
     });
     renderClientPanel();
   }
-function quillImageHandler() {
+async function uploadAndInsertImage(file, index) {
+    document.getElementById('image-upload-status').style.display = 'block';
+    const filePath = `broadcast-images/${Date.now()}_${file.name}`;
+    const { error } = await supabaseClient.storage.from('email-assets').upload(filePath, file);
+    document.getElementById('image-upload-status').style.display = 'none';
+    if (error) { alert('Image upload failed: ' + error.message); return; }
+    const { data: urlData } = supabaseClient.storage.from('email-assets').getPublicUrl(filePath);
+    quill.insertEmbed(index, 'image', urlData.publicUrl);
+    quill.setSelection(index + 1);
+  }
+
+  function quillImageHandler() {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
@@ -173,13 +184,8 @@ function quillImageHandler() {
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
-      const range = quill.getSelection(true);
-      const filePath = `broadcast-images/${Date.now()}_${file.name}`;
-      const { error } = await supabaseClient.storage.from('email-assets').upload(filePath, file);
-      if (error) { alert('Image upload failed: ' + error.message); return; }
-      const { data: urlData } = supabaseClient.storage.from('email-assets').getPublicUrl(filePath);
-      quill.insertEmbed(range.index, 'image', urlData.publicUrl);
-      quill.setSelection(range.index + 1);
+      const range = quill.getSelection(true) || { index: quill.getLength() };
+      await uploadAndInsertImage(file, range.index);
     };
   }
 
@@ -209,7 +215,7 @@ function renderBroadcastPanel() {
             <button type="button" id="insert-file-link-btn" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 12px; font-size:0.8rem;">+ Attach File Link</button>
           </div>
           <div id="broadcast-editor" style="background:var(--white); border-radius:8px; border:1px solid #DDE1E7; min-height:200px;"></div>
-        </div>
+          <p id="image-upload-status" style="font-size:0.8rem; color:var(--slate); margin-top:6px; display:none;">Uploading image...</p>
         <div style="margin-bottom:16px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <label style="font-size:0.86rem; font-weight:600;">Recipients (${allClients.length})</label>
@@ -239,6 +245,30 @@ quill = new Quill('#broadcast-editor', {
         }
       }
     });
+    const editorEl = document.querySelector('#broadcast-editor .ql-editor');
+
+    editorEl.addEventListener('dragover', (e) => e.preventDefault());
+    editorEl.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const range = quill.getSelection(true) || { index: quill.getLength() };
+        await uploadAndInsertImage(file, range.index);
+      }
+    });
+
+    editorEl.addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          const range = quill.getSelection(true) || { index: quill.getLength() };
+          await uploadAndInsertImage(file, range.index);
+        }
+      }
+    });
 
     document.getElementById('insert-file-link-btn').addEventListener('click', () => {
       const input = document.createElement('input');
@@ -265,9 +295,18 @@ quill = new Quill('#broadcast-editor', {
     document.getElementById('send-broadcast-btn').addEventListener('click', sendBroadcast);
   }
 
+ function makeImagesResponsive(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll('img').forEach(img => {
+      img.setAttribute('style', 'max-width:100%; height:auto; display:block; border-radius:8px; margin:12px 0;');
+    });
+    return div.innerHTML;
+  } 
+
 async function sendBroadcast() {
     const subject = document.getElementById('broadcast-subject').value.trim();
-    const message = quill.root.innerHTML.trim();
+    const message = makeImagesResponsive(quill.root.innerHTML.trim());
     const resultEl = document.getElementById('broadcast-result');
     const btn = document.getElementById('send-broadcast-btn');
 
