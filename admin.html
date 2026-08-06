@@ -43,7 +43,7 @@
   </div>
 
   <div class="admin-content">
-    <div class="admin-stats">
+   <div class="admin-stats">
       <div class="stat-card">
         <div class="num" id="stat-clients">0</div>
         <div class="label">Total Clients</div>
@@ -52,6 +52,7 @@
         <div class="num" id="stat-open-requests">0</div>
         <div class="label">Open Requests</div>
       </div>
+      <button id="broadcast-btn" class="btn btn-green" style="align-self:center;">📢 New Broadcast</button>
     </div>
 
     <div id="client-panel">
@@ -93,7 +94,7 @@
     currentSession = session;
     loadClients();
   })();
-
+document.getElementById('broadcast-btn').addEventListener('click', renderBroadcastPanel);
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
@@ -161,7 +162,91 @@
     });
     renderClientPanel();
   }
+function renderBroadcastPanel() {
+    selectedClient = null;
+    document.querySelectorAll('.client-item').forEach(el => el.classList.remove('active'));
 
+    const panel = document.getElementById('client-panel');
+    const clientOptions = allClients.map(c => `
+      <label style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:0.88rem; border-bottom:1px solid #EEF0F3;">
+        <input type="checkbox" class="broadcast-recipient" value="${c.id}" data-email="${c.email}" data-name="${(c.business_name || c.email).replace(/"/g,'')}" checked>
+        ${c.business_name || c.email} <span style="color:var(--slate);">(${c.email})</span>
+      </label>
+    `).join('');
+
+    panel.innerHTML = `
+      <h1 style="font-size:1.5rem; margin-bottom:4px;">New Broadcast</h1>
+      <p class="sub" style="margin-bottom:24px;">Send one email to some or all of your clients at once.</p>
+      <div class="card-box">
+        <div style="margin-bottom:16px;">
+          <label style="font-size:0.86rem; font-weight:600; display:block; margin-bottom:6px;">Subject</label>
+          <input type="text" id="broadcast-subject" placeholder="e.g. New service launching this month" style="width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; background:var(--off-white);">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:0.86rem; font-weight:600; display:block; margin-bottom:6px;">Message</label>
+          <textarea id="broadcast-message" rows="6" placeholder="Write your message here..." style="width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; background:var(--off-white); font-family:'Inter',sans-serif;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:0.86rem; font-weight:600;">Recipients (${allClients.length})</label>
+            <button type="button" id="toggle-all-recipients" class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 12px; font-size:0.8rem;">Toggle All</button>
+          </div>
+          <div style="max-height:220px; overflow-y:auto; border:1px solid #EEF0F3; border-radius:8px; padding:10px 14px;">
+            ${clientOptions || '<p class="empty-state">No clients yet.</p>'}
+          </div>
+        </div>
+        <button id="send-broadcast-btn" class="btn btn-green">Send Broadcast</button>
+        <p id="broadcast-result" style="margin-top:14px; font-size:0.88rem; color:var(--slate);"></p>
+      </div>
+    `;
+
+    document.getElementById('toggle-all-recipients').addEventListener('click', () => {
+      const boxes = document.querySelectorAll('.broadcast-recipient');
+      const anyUnchecked = Array.from(boxes).some(b => !b.checked);
+      boxes.forEach(b => b.checked = anyUnchecked);
+    });
+
+    document.getElementById('send-broadcast-btn').addEventListener('click', sendBroadcast);
+  }
+
+  async function sendBroadcast() {
+    const subject = document.getElementById('broadcast-subject').value.trim();
+    const message = document.getElementById('broadcast-message').value.trim();
+    const resultEl = document.getElementById('broadcast-result');
+    const btn = document.getElementById('send-broadcast-btn');
+
+    const recipients = Array.from(document.querySelectorAll('.broadcast-recipient:checked')).map(cb => ({
+      email: cb.dataset.email,
+      name: cb.dataset.name
+    }));
+
+    if (!subject || !message) { alert('Please fill in both subject and message.'); return; }
+    if (recipients.length === 0) { alert('Select at least one recipient.'); return; }
+
+    btn.textContent = 'Sending...';
+    resultEl.textContent = '';
+
+    const res = await fetch('/api/broadcast', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + currentSession.access_token
+      },
+      body: JSON.stringify({ recipients, subject, message })
+    });
+
+    const result = await res.json();
+    btn.textContent = 'Send Broadcast';
+
+    if (!res.ok) {
+      resultEl.style.color = '#791F1F';
+      resultEl.textContent = 'Error: ' + (result.error?.message || JSON.stringify(result.error));
+      return;
+    }
+
+    resultEl.style.color = '#0F7A4C';
+    resultEl.textContent = `Sent to ${result.sent} of ${result.total} recipients` + (result.failed > 0 ? ` (${result.failed} failed)` : '') + '.';
+  }
   function renderClientPanel() {
     const panel = document.getElementById('client-panel');
     panel.innerHTML = `
