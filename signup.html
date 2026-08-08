@@ -122,6 +122,9 @@
 
 <script>
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  document.getElementById('menu-toggle').addEventListener('click', () => {
+    document.getElementById('mobile-nav').classList.toggle('open');
+  });
 
   const form = document.getElementById('signup-form');
   const errorBox = document.getElementById('signup-error');
