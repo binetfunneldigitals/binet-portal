@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="assets/styles.css">
 <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-config.js"></script>
 </head>
@@ -55,6 +56,7 @@
         <div class="label">Open Requests</div>
       </div>
       <button id="broadcast-btn" class="btn btn-green" style="align-self:center;">📢 New Broadcast</button>
+      <button id="analytics-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">📊 Analytics</button>
     </div>
 
     <div id="client-panel">
@@ -685,6 +687,137 @@
   }
 
   document.getElementById('broadcast-btn').addEventListener('click', renderBroadcastPanel);
+
+  // ==========================================================
+  // ANALYTICS
+  // ==========================================================
+
+  let charts = [];
+
+  function destroyCharts() {
+    charts.forEach(c => c.destroy());
+    charts = [];
+  }
+
+  function monthLabel(dateStr) {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  }
+
+  async function renderAnalyticsPanel() {
+    selectedClient = null;
+    renderClientList(allClients);
+    destroyCharts();
+
+    const panel = document.getElementById('client-panel');
+    panel.innerHTML = `
+      <h1 style="font-size:1.5rem; margin-bottom:4px;">Analytics</h1>
+      <p class="sub" style="margin-bottom:24px;">A live snapshot of how your agency is growing.</p>
+
+      <div class="admin-stats" style="margin-bottom:24px;">
+        <div class="stat-card"><div class="num" id="an-total-clients">–</div><div class="label">Total Clients</div></div>
+        <div class="stat-card"><div class="num" id="an-total-messages">–</div><div class="label">Total Messages</div></div>
+        <div class="stat-card"><div class="num" id="an-total-reports">–</div><div class="label">Reports Uploaded</div></div>
+      </div>
+
+      <div class="card-box">
+        <h3 style="font-size:1rem; margin-bottom:16px;">Client Growth Over Time</h3>
+        <canvas id="chart-clients" height="90"></canvas>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="card-box">
+          <h3 style="font-size:1rem; margin-bottom:16px;">Request Status Breakdown</h3>
+          <canvas id="chart-requests" height="220"></canvas>
+        </div>
+        <div class="card-box">
+          <h3 style="font-size:1rem; margin-bottom:16px;">Messages: You vs Clients</h3>
+          <canvas id="chart-messages" height="220"></canvas>
+        </div>
+      </div>
+    `;
+
+    const [requestsRes, messagesRes, reportsRes] = await Promise.all([
+      supabaseClient.from('requests').select('status, created_at'),
+      supabaseClient.from('messages').select('sender_role, created_at'),
+      supabaseClient.from('reports').select('id')
+    ]);
+
+    const requests = requestsRes.data || [];
+    const messages = messagesRes.data || [];
+    const reports = reportsRes.data || [];
+
+    document.getElementById('an-total-clients').textContent = allClients.length;
+    document.getElementById('an-total-messages').textContent = messages.length;
+    document.getElementById('an-total-reports').textContent = reports.length;
+
+    // ---- Client growth by month ----
+    const growthMap = {};
+    allClients.forEach(c => {
+      const label = monthLabel(c.created_at);
+      growthMap[label] = (growthMap[label] || 0) + 1;
+    });
+    const growthLabels = Object.keys(growthMap);
+    const growthData = Object.values(growthMap);
+
+    charts.push(new Chart(document.getElementById('chart-clients'), {
+      type: 'line',
+      data: {
+        labels: growthLabels,
+        datasets: [{
+          label: 'New Clients',
+          data: growthData,
+          borderColor: '#1D9E75',
+          backgroundColor: 'rgba(29,158,117,0.12)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    }));
+
+    // ---- Request status breakdown ----
+    const statusCounts = { open: 0, in_progress: 0, done: 0 };
+    requests.forEach(r => { if (statusCounts[r.status] !== undefined) statusCounts[r.status]++; });
+
+    charts.push(new Chart(document.getElementById('chart-requests'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Open', 'In Progress', 'Done'],
+        datasets: [{
+          data: [statusCounts.open, statusCounts.in_progress, statusCounts.done],
+          backgroundColor: ['#D4A017', '#0B5A96', '#1D9E75']
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    }));
+
+    // ---- Messages: admin vs client ----
+    const adminMsgs = messages.filter(m => m.sender_role === 'admin').length;
+    const clientMsgs = messages.filter(m => m.sender_role === 'client').length;
+
+    charts.push(new Chart(document.getElementById('chart-messages'), {
+      type: 'bar',
+      data: {
+        labels: ['You', 'Clients'],
+        datasets: [{
+          label: 'Messages',
+          data: [adminMsgs, clientMsgs],
+          backgroundColor: ['#0A1628', '#1D9E75']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    }));
+  }
+
+  document.getElementById('analytics-btn').addEventListener('click', renderAnalyticsPanel);
 </script>
 
 </body>
