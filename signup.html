@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Create Your Account — BINet Funnel Digitals</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -86,6 +87,7 @@
     <div id="signup-success"></div>
 
     <form id="signup-form">
+      <input type="text" name="website" id="website-trap" style="position:absolute; left:-9999px;" tabindex="-1" autocomplete="off">
       <div class="field">
         <label for="business_name">Business name</label>
         <input type="text" id="business_name" required>
@@ -122,6 +124,8 @@
       </a>
       <p class="tagline">Visibility. Customers. <b>Growth.</b></p>
       <div class="footer-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
         <a href="https://wa.me/2348117090999" target="_blank" rel="noopener">WhatsApp</a>
         <a href="mailto:binet.enquiries@gmail.com">Email</a>
       </div>
@@ -143,6 +147,7 @@
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (document.getElementById('website-trap').value) return; // bot detected, silently stop
     errorBox.style.display = 'none';
     successBox.style.display = 'none';
     signupBtn.textContent = 'Creating account...';

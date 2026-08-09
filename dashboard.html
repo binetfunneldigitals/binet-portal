@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — BINet Funnel Digitals</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
@@ -56,11 +57,16 @@
     <button class="tab-btn" data-tab="messages">Messages<span class="tab-dot" id="messages-tab-dot"></span></button>
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="requests">Requests</button>
+    <button class="tab-btn" data-tab="inventory">Inventory</button>
     <button class="tab-btn" data-tab="account">Account</button>
   </div>
 
   <!-- OVERVIEW TAB -->
   <div class="tab-panel active" id="tab-overview">
+    <div id="welcome-banner" style="display:none; background:linear-gradient(135deg,#0A1628,#101f38); color:#fff; border-radius:14px; padding:26px 28px; margin-bottom:20px;">
+      <h3 style="font-size:1.1rem; margin-bottom:8px;">🎉 Welcome to BINet Funnel Digitals!</h3>
+      <p style="font-size:0.9rem; color:#B9C2D1; line-height:1.6;">Thanks for creating your account. Our team will review your details and reach out within 24 hours to get started. In the meantime, feel free to send us a message below or explore your dashboard.</p>
+    </div>
     <div class="admin-stats" style="margin-bottom:16px;">
       <div class="stat-card"><div class="num" id="ov-open-requests">0</div><div class="label">Open Requests</div></div>
       <div class="stat-card"><div class="num" id="ov-reports">0</div><div class="label">Reports Available</div></div>
@@ -113,6 +119,28 @@
           <textarea id="request-description" rows="3" placeholder="Add any details we should know..."></textarea>
           <button type="submit" class="btn btn-green" style="align-self:flex-start;">Submit Request</button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVENTORY TAB -->
+  <div class="tab-panel" id="tab-inventory">
+    <div class="card-box" id="inventory-upgrade-card" style="display:none; text-align:center; padding:48px 24px;">
+      <h3 style="font-size:1.1rem; margin-bottom:10px;">📦 Inventory Management</h3>
+      <p style="color:var(--slate); max-width:420px; margin:0 auto 20px;">Track your products or services, monitor stock levels, and stay on top of what's running low — available on Pro and Enterprise plans.</p>
+      <a href="https://wa.me/2348117090999" target="_blank" rel="noopener" class="btn btn-green">Upgrade My Plan</a>
+    </div>
+    <div id="inventory-manager" style="display:none;">
+      <div class="card-box">
+        <div id="inventory-list"><p class="empty-state">Loading...</p></div>
+        <div class="upload-row">
+          <div class="field"><label>Item name</label><input type="text" id="inv-name" placeholder="e.g. Blue T-Shirt (M)"></div>
+          <div class="field"><label>SKU (optional)</label><input type="text" id="inv-sku"></div>
+          <div class="field"><label>Category</label><input type="text" id="inv-category"></div>
+          <div class="field"><label>Quantity</label><input type="number" id="inv-quantity" value="0" min="0"></div>
+          <div class="field"><label>Price (₦)</label><input type="number" id="inv-price" step="0.01" min="0"></div>
+          <button class="btn btn-green" id="add-inventory-btn">Add Item</button>
+        </div>
       </div>
     </div>
   </div>
@@ -198,6 +226,7 @@
     loadMessages();
     loadReports();
     loadRequests();
+    renderInventoryGate();
   })();
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -222,6 +251,13 @@
     document.getElementById('ov-unread').textContent = unreadCount;
 
     if (unreadCount > 0) document.getElementById('messages-tab-dot').style.display = 'block';
+
+    const { data: allMessagesCheck } = await supabaseClient
+      .from('messages').select('id').eq('client_id', currentUser.id).limit(1);
+
+    if (requests.length === 0 && reports.length === 0 && (!allMessagesCheck || allMessagesCheck.length === 0)) {
+      document.getElementById('welcome-banner').style.display = 'block';
+    }
 
     const { data: recentMessages } = await supabaseClient
       .from('messages').select('*').eq('client_id', currentUser.id)
@@ -453,6 +489,86 @@
     if (!error) {
       document.getElementById('acc-new-password').value = '';
       document.getElementById('acc-confirm-password').value = '';
+    }
+  });
+
+  // ---- Inventory (paid feature) ----
+  function renderInventoryGate() {
+    const isPaid = currentUser.plan === 'pro' || currentUser.plan === 'enterprise';
+    document.getElementById('inventory-upgrade-card').style.display = isPaid ? 'none' : 'block';
+    document.getElementById('inventory-manager').style.display = isPaid ? 'block' : 'none';
+    if (isPaid) loadInventory();
+  }
+
+  async function loadInventory() {
+    const { data, error } = await supabaseClient
+      .from('inventory_items')
+      .select('*')
+      .eq('client_id', currentUser.id)
+      .order('name', { ascending: true });
+
+    const list = document.getElementById('inventory-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No items yet. Add your first one below.</p>';
+      return;
+    }
+    list.innerHTML = data.map(item => {
+      const low = item.quantity <= (item.low_stock_threshold || 5);
+      return `
+        <div class="list-item">
+          <div>
+            <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
+            <p>${item.sku ? 'SKU: ' + escapeHtml(item.sku) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.price ? ' · ₦' + Number(item.price).toLocaleString() : ''}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 10px;" data-adjust="-1" data-id="${item.id}">−</button>
+            <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 10px;" data-adjust="1" data-id="${item.id}">+</button>
+            <button class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7; padding:6px 10px;" data-delete="${item.id}">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('[data-adjust]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const item = data.find(i => i.id === btn.dataset.id);
+        const newQty = Math.max(0, item.quantity + parseInt(btn.dataset.adjust));
+        await supabaseClient.from('inventory_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', item.id);
+        loadInventory();
+      });
+    });
+
+    list.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this item?')) return;
+        await supabaseClient.from('inventory_items').delete().eq('id', btn.dataset.delete);
+        loadInventory();
+      });
+    });
+  }
+
+  document.getElementById('add-inventory-btn').addEventListener('click', async () => {
+    const name = document.getElementById('inv-name').value.trim();
+    const sku = document.getElementById('inv-sku').value.trim();
+    const category = document.getElementById('inv-category').value.trim();
+    const quantity = parseInt(document.getElementById('inv-quantity').value) || 0;
+    const price = parseFloat(document.getElementById('inv-price').value) || null;
+
+    if (!name) { alert('Please enter an item name.'); return; }
+
+    const { error } = await supabaseClient.from('inventory_items').insert({
+      client_id: currentUser.id, name, sku, category, quantity, price
+    });
+
+    if (!error) {
+      document.getElementById('inv-name').value = '';
+      document.getElementById('inv-sku').value = '';
+      document.getElementById('inv-category').value = '';
+      document.getElementById('inv-quantity').value = '0';
+      document.getElementById('inv-price').value = '';
+      loadInventory();
+    } else {
+      alert('Could not add item: ' + error.message);
     }
   });
 </script>

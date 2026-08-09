@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — BINet Funnel Digitals</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
@@ -271,22 +272,30 @@
   function renderClientPanel() {
     const panel = document.getElementById('client-panel');
     panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+      <div class="client-header-row">
         <div>
           <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
           <p class="sub" style="margin-bottom:0;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
         </div>
-        <select class="status-select" id="client-status-select">
-          <option value="active" ${selectedClient.status === 'active' || !selectedClient.status ? 'selected' : ''}>Active</option>
-          <option value="onboarding" ${selectedClient.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
-          <option value="paused" ${selectedClient.status === 'paused' ? 'selected' : ''}>Paused</option>
-        </select>
+        <div style="display:flex; gap:8px;">
+          <select class="status-select" id="client-status-select">
+            <option value="active" ${selectedClient.status === 'active' || !selectedClient.status ? 'selected' : ''}>Active</option>
+            <option value="onboarding" ${selectedClient.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
+            <option value="paused" ${selectedClient.status === 'paused' ? 'selected' : ''}>Paused</option>
+          </select>
+          <select class="status-select" id="client-plan-select">
+            <option value="basic" ${selectedClient.plan === 'basic' || !selectedClient.plan ? 'selected' : ''}>Basic</option>
+            <option value="pro" ${selectedClient.plan === 'pro' ? 'selected' : ''}>Pro</option>
+            <option value="enterprise" ${selectedClient.plan === 'enterprise' ? 'selected' : ''}>Enterprise</option>
+          </select>
+        </div>
       </div>
 
       <div class="tabs">
         <button class="tab-btn active" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="reports">Reports</button>
         <button class="tab-btn" data-tab="requests">Requests</button>
+        <button class="tab-btn" data-tab="inventory">Inventory</button>
         <button class="tab-btn" data-tab="notes">Notes</button>
       </div>
 
@@ -335,6 +344,21 @@
         </div>
       </div>
 
+      <div class="tab-panel" id="tab-inventory">
+        <div class="card-box">
+          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Manage this client's inventory. Note: they can only manage it themselves if their plan is Pro or Enterprise.</p>
+          <div id="admin-inventory-list"><p class="empty-state">Loading...</p></div>
+          <div class="upload-row">
+            <div class="field"><label>Item name</label><input type="text" id="admin-inv-name"></div>
+            <div class="field"><label>SKU (optional)</label><input type="text" id="admin-inv-sku"></div>
+            <div class="field"><label>Category</label><input type="text" id="admin-inv-category"></div>
+            <div class="field"><label>Quantity</label><input type="number" id="admin-inv-quantity" value="0" min="0"></div>
+            <div class="field"><label>Price (₦)</label><input type="number" id="admin-inv-price" step="0.01" min="0"></div>
+            <button class="btn btn-green" id="admin-add-inventory-btn">Add Item</button>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-panel" id="tab-notes">
         <div class="card-box">
           <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Private notes — only visible to you, never shown to this client.</p>
@@ -360,6 +384,13 @@
       const c = allClients.find(c => c.id === selectedClient.id);
       if (c) c.status = e.target.value;
       renderClientList(allClients);
+    });
+
+    document.getElementById('client-plan-select').addEventListener('change', async (e) => {
+      await supabaseClient.from('profiles').update({ plan: e.target.value }).eq('id', selectedClient.id);
+      selectedClient.plan = e.target.value;
+      const c = allClients.find(c => c.id === selectedClient.id);
+      if (c) c.plan = e.target.value;
     });
 
     document.getElementById('admin-message-form').addEventListener('submit', sendAdminMessage);
@@ -390,6 +421,9 @@
     loadAdminReports();
     loadAdminRequests();
     loadAdminNote();
+    loadAdminInventory();
+
+    document.getElementById('admin-add-inventory-btn').addEventListener('click', addAdminInventoryItem);
   }
 
   let pendingAdminAttachment = null;
@@ -404,6 +438,66 @@
     const msgEl = document.getElementById('note-save-msg');
     const { error } = await supabaseClient.from('admin_notes').upsert({ client_id: selectedClient.id, note, updated_at: new Date().toISOString() }, { onConflict: 'client_id' });
     msgEl.textContent = error ? 'Error: ' + error.message : 'Saved!';
+  }
+
+  // ---- Inventory (admin side, works regardless of client's plan) ----
+  async function loadAdminInventory() {
+    const { data, error } = await supabaseClient
+      .from('inventory_items')
+      .select('*')
+      .eq('client_id', selectedClient.id)
+      .order('name', { ascending: true });
+
+    const list = document.getElementById('admin-inventory-list');
+    if (error || !data || data.length === 0) {
+      list.innerHTML = '<p class="empty-state">No inventory items yet.</p>';
+      return;
+    }
+    list.innerHTML = data.map(item => {
+      const low = item.quantity <= (item.low_stock_threshold || 5);
+      return `
+        <div class="list-item">
+          <div>
+            <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
+            <p>${item.sku ? 'SKU: ' + escapeHtml(item.sku) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.price ? ' · ₦' + Number(item.price).toLocaleString() : ''}</p>
+          </div>
+          <button class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7; padding:6px 10px;" data-delete="${item.id}">Delete</button>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this item?')) return;
+        await supabaseClient.from('inventory_items').delete().eq('id', btn.dataset.delete);
+        loadAdminInventory();
+      });
+    });
+  }
+
+  async function addAdminInventoryItem() {
+    const name = document.getElementById('admin-inv-name').value.trim();
+    const sku = document.getElementById('admin-inv-sku').value.trim();
+    const category = document.getElementById('admin-inv-category').value.trim();
+    const quantity = parseInt(document.getElementById('admin-inv-quantity').value) || 0;
+    const price = parseFloat(document.getElementById('admin-inv-price').value) || null;
+
+    if (!name) { alert('Please enter an item name.'); return; }
+
+    const { error } = await supabaseClient.from('inventory_items').insert({
+      client_id: selectedClient.id, name, sku, category, quantity, price
+    });
+
+    if (!error) {
+      document.getElementById('admin-inv-name').value = '';
+      document.getElementById('admin-inv-sku').value = '';
+      document.getElementById('admin-inv-category').value = '';
+      document.getElementById('admin-inv-quantity').value = '0';
+      document.getElementById('admin-inv-price').value = '';
+      loadAdminInventory();
+    } else {
+      alert('Could not add item: ' + error.message);
+    }
   }
 
   // ==========================================================

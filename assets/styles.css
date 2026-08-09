@@ -324,3 +324,23 @@ footer{background:var(--navy-soft); color:#AEB7C4; padding:44px 0; border-top:1p
 @media (max-width:900px){
   .menu-toggle{display:flex;}
 }
+
+/* ===== Mobile polish for admin/client dashboards ===== */
+.client-header-row{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; }
+@media (max-width:700px){
+  .dash-topbar .wrap{ flex-wrap:wrap; gap:10px; }
+  .dash-user{ width:100%; justify-content:space-between; }
+  .dash-main{ padding:24px 16px 60px; }
+  .admin-content{ padding:20px 16px; }
+  .tabs{ overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
+  .tab-btn{ white-space:nowrap; flex:none; }
+  .admin-stats{ flex-wrap:wrap; }
+  .admin-stats .stat-card{ min-width:130px; }
+  .message-input-row{ flex-wrap:wrap; }
+  .message-input-row input[type="text"]{ order:1; width:100%; }
+  .message-input-row .attach-btn{ order:0; }
+  .message-input-row button[type="submit"]{ order:2; }
+  .home-feed-item > div{ flex-wrap:wrap; }
+  .client-header-row{ flex-wrap:wrap; gap:12px; }
+  .upload-row{ flex-direction:column; align-items:stretch; }
+}
