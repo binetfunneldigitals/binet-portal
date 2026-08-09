@@ -7,6 +7,32 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<style>
+  .status-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .status-dot.active{ background:#1D9E75; }
+  .status-dot.onboarding{ background:#D4A017; }
+  .status-dot.paused{ background:#9AA1AC; }
+  .client-item{ position:relative; }
+  .unread-badge{
+    position:absolute; top:12px; right:12px; background:#D64545; color:#fff;
+    font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:999px;
+  }
+  .attach-btn{
+    background:var(--off-white); border:1px solid #DDE1E7; border-radius:8px;
+    padding:0 14px; cursor:pointer; font-size:1rem; color:var(--slate);
+  }
+  .attachment-chip{
+    display:none; align-items:center; gap:8px; background:var(--off-white);
+    border-radius:8px; padding:8px 12px; font-size:0.82rem; margin-top:8px; max-width:fit-content;
+  }
+  .attachment-chip button{ background:none; border:none; color:var(--slate); cursor:pointer; font-size:0.9rem; }
+  .msg-attachment{ display:block; margin-top:6px; font-size:0.82rem; text-decoration:underline; }
+  .home-feed-item{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid #EEF0F3; cursor:pointer; }
+  .home-feed-item:last-child{ border-bottom:none; }
+  .home-feed-item:hover{ background:var(--off-white); }
+  .home-feed-item h4{ font-size:0.92rem; margin-bottom:2px; }
+  .home-feed-item p{ font-size:0.85rem; color:var(--slate); }
+</style>
 <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -57,10 +83,11 @@
       </div>
       <button id="broadcast-btn" class="btn btn-green" style="align-self:center;">📢 New Broadcast</button>
       <button id="analytics-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">📊 Analytics</button>
+      <button id="home-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">🏠 Home</button>
     </div>
 
     <div id="client-panel">
-      <p class="no-client-selected">Select a client from the left to view their messages, reports, and requests.</p>
+      <p class="no-client-selected">Loading your dashboard...</p>
     </div>
   </div>
 </div>
@@ -71,6 +98,7 @@
   let selectedClient = null;
   let currentSession = null;
   let quill = null;
+  let unreadCounts = {};
 
   function timeAgo(dateStr) {
     const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -100,6 +128,12 @@
     document.getElementById('admin-label').textContent = profile.email;
     loadClients();
   })();
+
+  document.getElementById('home-btn').addEventListener('click', () => {
+    selectedClient = null;
+    renderClientList(allClients);
+    renderHomeFeed();
+  });
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await supabaseClient.auth.signOut();
@@ -168,8 +202,23 @@
 
     allClients = data || [];
     document.getElementById('stat-clients').textContent = allClients.length;
+    await loadUnreadCounts();
     renderClientList(allClients);
     loadOpenRequestsCount();
+    if (!selectedClient) renderHomeFeed();
+  }
+
+  async function loadUnreadCounts() {
+    const { data } = await supabaseClient
+      .from('messages')
+      .select('client_id')
+      .eq('sender_role', 'client')
+      .eq('read_by_admin', false);
+
+    unreadCounts = {};
+    (data || []).forEach(m => {
+      unreadCounts[m.client_id] = (unreadCounts[m.client_id] || 0) + 1;
+    });
   }
 
   function renderClientList(clients) {
@@ -180,8 +229,9 @@
     }
     listEl.innerHTML = clients.map(c => `
       <div class="client-item ${selectedClient && selectedClient.id === c.id ? 'active' : ''}" data-id="${c.id}">
-        <h4>${escapeHtml(c.business_name || c.email)}</h4>
+        <h4><span class="status-dot ${c.status || 'active'}"></span>${escapeHtml(c.business_name || c.email)}</h4>
         <p>${escapeHtml(c.contact_name || c.email)}</p>
+        ${unreadCounts[c.id] ? `<span class="unread-badge">${unreadCounts[c.id]}</span>` : ''}
       </div>
     `).join('');
 
@@ -221,13 +271,23 @@
   function renderClientPanel() {
     const panel = document.getElementById('client-panel');
     panel.innerHTML = `
-      <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
-      <p class="sub" style="margin-bottom:24px;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+        <div>
+          <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
+          <p class="sub" style="margin-bottom:0;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
+        </div>
+        <select class="status-select" id="client-status-select">
+          <option value="active" ${selectedClient.status === 'active' || !selectedClient.status ? 'selected' : ''}>Active</option>
+          <option value="onboarding" ${selectedClient.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
+          <option value="paused" ${selectedClient.status === 'paused' ? 'selected' : ''}>Paused</option>
+        </select>
+      </div>
 
       <div class="tabs">
         <button class="tab-btn active" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="reports">Reports</button>
         <button class="tab-btn" data-tab="requests">Requests</button>
+        <button class="tab-btn" data-tab="notes">Notes</button>
       </div>
 
       <div class="tab-panel active" id="tab-messages">
@@ -236,9 +296,15 @@
             <p class="empty-state">Loading...</p>
           </div>
           <form id="admin-message-form" class="message-input-row">
-            <input type="text" id="admin-message-input" placeholder="Reply to ${escapeHtml(selectedClient.business_name || selectedClient.email)}..." required>
+            <button type="button" class="attach-btn" id="admin-attach-btn" title="Attach a file">📎</button>
+            <input type="file" id="admin-attach-input" style="display:none;">
+            <input type="text" id="admin-message-input" placeholder="Reply to ${escapeHtml(selectedClient.business_name || selectedClient.email)}...">
             <button type="submit" class="btn btn-green">Send</button>
           </form>
+          <div class="attachment-chip" id="admin-attachment-chip">
+            <span id="admin-attachment-name"></span>
+            <button type="button" id="admin-remove-attachment">✕</button>
+          </div>
         </div>
       </div>
 
@@ -268,6 +334,15 @@
           <div id="admin-requests-list"><p class="empty-state">Loading...</p></div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tab-notes">
+        <div class="card-box">
+          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Private notes — only visible to you, never shown to this client.</p>
+          <textarea id="admin-note-textarea" rows="8" placeholder="e.g. Called 3rd Aug, interested in upgrading package..." style="width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; background:var(--off-white); font-family:'Inter',sans-serif; font-size:0.92rem;"></textarea>
+          <button id="save-note-btn" class="btn btn-green" style="margin-top:12px;">Save Note</button>
+          <p id="note-save-msg" style="font-size:0.85rem; color:var(--slate); margin-top:8px;"></p>
+        </div>
+      </div>
     `;
 
     panel.querySelectorAll('.tab-btn').forEach(btn => {
@@ -279,16 +354,139 @@
       });
     });
 
+    document.getElementById('client-status-select').addEventListener('change', async (e) => {
+      await supabaseClient.from('profiles').update({ status: e.target.value }).eq('id', selectedClient.id);
+      selectedClient.status = e.target.value;
+      const c = allClients.find(c => c.id === selectedClient.id);
+      if (c) c.status = e.target.value;
+      renderClientList(allClients);
+    });
+
     document.getElementById('admin-message-form').addEventListener('submit', sendAdminMessage);
     document.getElementById('upload-report-btn').addEventListener('click', uploadReport);
+    document.getElementById('save-note-btn').addEventListener('click', saveAdminNote);
+
+    document.getElementById('admin-attach-btn').addEventListener('click', () => {
+      document.getElementById('admin-attach-input').click();
+    });
+    document.getElementById('admin-attach-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const filePath = `${selectedClient.id}/${Date.now()}_${file.name}`;
+      const { error } = await supabaseClient.storage.from('message-attachments').upload(filePath, file);
+      if (error) { alert('Upload failed: ' + error.message); return; }
+      const { data: urlData } = supabaseClient.storage.from('message-attachments').getPublicUrl(filePath);
+      pendingAdminAttachment = { url: urlData.publicUrl, name: file.name };
+      document.getElementById('admin-attachment-name').textContent = '📎 ' + file.name;
+      document.getElementById('admin-attachment-chip').style.display = 'flex';
+    });
+    document.getElementById('admin-remove-attachment').addEventListener('click', () => {
+      pendingAdminAttachment = null;
+      document.getElementById('admin-attachment-chip').style.display = 'none';
+      document.getElementById('admin-attach-input').value = '';
+    });
 
     loadAdminMessages();
     loadAdminReports();
     loadAdminRequests();
+    loadAdminNote();
+  }
+
+  let pendingAdminAttachment = null;
+
+  async function loadAdminNote() {
+    const { data } = await supabaseClient.from('admin_notes').select('note').eq('client_id', selectedClient.id).maybeSingle();
+    document.getElementById('admin-note-textarea').value = data ? data.note : '';
+  }
+
+  async function saveAdminNote() {
+    const note = document.getElementById('admin-note-textarea').value;
+    const msgEl = document.getElementById('note-save-msg');
+    const { error } = await supabaseClient.from('admin_notes').upsert({ client_id: selectedClient.id, note, updated_at: new Date().toISOString() }, { onConflict: 'client_id' });
+    msgEl.textContent = error ? 'Error: ' + error.message : 'Saved!';
+  }
+
+  // ==========================================================
+  // HOME ACTIVITY FEED
+  // ==========================================================
+
+  async function renderHomeFeed() {
+    const panel = document.getElementById('client-panel');
+    panel.innerHTML = `
+      <h1 style="font-size:1.5rem; margin-bottom:4px;">Recent Activity</h1>
+      <p class="sub" style="margin-bottom:24px;">The latest messages and requests across all your clients.</p>
+      <div class="card-box">
+        <div id="home-feed-list"><p class="empty-state">Loading...</p></div>
+      </div>
+    `;
+
+    const [messagesRes, requestsRes] = await Promise.all([
+      supabaseClient.from('messages').select('*').order('created_at', { ascending: false }).limit(10),
+      supabaseClient.from('requests').select('*').order('created_at', { ascending: false }).limit(10)
+    ]);
+
+    const clientMap = {};
+    allClients.forEach(c => clientMap[c.id] = c);
+
+    const items = [
+      ...(messagesRes.data || []).map(m => ({
+        type: 'message', date: m.created_at, clientId: m.client_id,
+        title: (m.sender_role === 'client' ? 'New message from ' : 'You replied to ') + (clientMap[m.client_id]?.business_name || clientMap[m.client_id]?.email || 'a client'),
+        desc: m.content || '[Attachment]',
+        unread: m.sender_role === 'client' && !m.read_by_admin,
+        jumpTab: 'messages'
+      })),
+      ...(requestsRes.data || []).map(r => ({
+        type: 'request', date: r.created_at, clientId: r.client_id,
+        title: 'Request from ' + (clientMap[r.client_id]?.business_name || clientMap[r.client_id]?.email || 'a client'),
+        desc: r.title + ' · ' + r.status.replace('_',' '),
+        unread: false,
+        jumpTab: 'requests'
+      }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 12);
+
+    const listEl = document.getElementById('home-feed-list');
+    if (items.length === 0) {
+      listEl.innerHTML = '<p class="empty-state">No activity yet.</p>';
+      return;
+    }
+    const icons = { message: '💬', request: '📝' };
+    listEl.innerHTML = items.map((item, i) => `
+      <div class="home-feed-item" data-index="${i}">
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div class="feed-icon" style="width:34px; height:34px; border-radius:9px; background:var(--off-white); display:flex; align-items:center; justify-content:center; flex:none;">${icons[item.type]}</div>
+          <div>
+            <h4>${escapeHtml(item.title)} ${item.unread ? '<span class="unread-badge" style="position:static; margin-left:6px;">new</span>' : ''}</h4>
+            <p>${escapeHtml((item.desc || '').slice(0, 90))} · ${timeAgo(item.date)}</p>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.home-feed-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const item = items[parseInt(el.dataset.index)];
+        const client = clientMap[item.clientId];
+        if (!client) return;
+        selectClient(client);
+        setTimeout(() => {
+          const tabBtn = document.querySelector(`.tab-btn[data-tab="${item.jumpTab}"]`);
+          if (tabBtn) tabBtn.click();
+        }, 50);
+      });
+    });
   }
 
   // ---- Messages (admin side) ----
   async function loadAdminMessages() {
+    await supabaseClient.from('messages')
+      .update({ read_by_admin: true })
+      .eq('client_id', selectedClient.id)
+      .eq('sender_role', 'client')
+      .eq('read_by_admin', false);
+    delete unreadCounts[selectedClient.id];
+    renderClientList(allClients);
+
     const { data, error } = await supabaseClient
       .from('messages').select('*')
       .eq('client_id', selectedClient.id)
@@ -302,6 +500,7 @@
     thread.innerHTML = data.map(m => `
       <div class="msg ${m.sender_role === 'admin' ? 'client' : 'admin'}">
         ${escapeHtml(m.content)}
+        ${m.file_url ? `<a class="msg-attachment" href="${escapeHtml(m.file_url)}" target="_blank" rel="noopener">📎 ${escapeHtml(m.file_name || 'Attachment')}</a>` : ''}
         <span class="msg-time">${timeAgo(m.created_at)}</span>
       </div>
     `).join('');
@@ -312,16 +511,21 @@
     e.preventDefault();
     const input = document.getElementById('admin-message-input');
     const content = input.value.trim();
-    if (!content) return;
+    if (!content && !pendingAdminAttachment) return;
 
     const { error } = await supabaseClient.from('messages').insert({
       client_id: selectedClient.id,
       sender_role: 'admin',
-      content
+      content: content,
+      file_url: pendingAdminAttachment ? pendingAdminAttachment.url : null,
+      file_name: pendingAdminAttachment ? pendingAdminAttachment.name : null
     });
 
     if (!error) {
       input.value = '';
+      pendingAdminAttachment = null;
+      document.getElementById('admin-attachment-chip').style.display = 'none';
+      document.getElementById('admin-attach-input').value = '';
       loadAdminMessages();
       fetch('/api/send-email', {
         method: 'POST',
@@ -330,7 +534,7 @@
           to: selectedClient.email,
           toName: selectedClient.business_name || selectedClient.contact_name,
           subject: 'New message from BINet Funnel Digitals',
-          message: escapeHtml(content)
+          message: escapeHtml(content || '[Sent an attachment]')
         })
       }).catch(() => {});
     } else {
