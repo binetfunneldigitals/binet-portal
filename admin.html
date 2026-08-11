@@ -230,7 +230,7 @@
     }
     listEl.innerHTML = clients.map(c => `
       <div class="client-item ${selectedClient && selectedClient.id === c.id ? 'active' : ''}" data-id="${c.id}">
-        <h4><span class="status-dot ${c.status || 'active'}"></span>${escapeHtml(c.business_name || c.email)}</h4>
+        <h4><span class="status-dot ${c.status || 'active'}"></span>${escapeHtml(c.business_name || c.email)} ${!c.is_approved ? '<span style="color:#D64545; font-size:0.7rem; font-weight:700;">PENDING</span>' : ''}</h4>
         <p>${escapeHtml(c.contact_name || c.email)}</p>
         ${unreadCounts[c.id] ? `<span class="unread-badge">${unreadCounts[c.id]}</span>` : ''}
       </div>
@@ -277,7 +277,10 @@
           <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
           <p class="sub" style="margin-bottom:0;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${selectedClient.is_approved
+            ? '<span class="status-badge status-done">✓ Approved</span>'
+            : '<button id="approve-client-btn" class="btn btn-green" style="padding:8px 14px; font-size:0.85rem;">⏳ Activate Account</button>'}
           <select class="status-select" id="client-status-select">
             <option value="active" ${selectedClient.status === 'active' || !selectedClient.status ? 'selected' : ''}>Active</option>
             <option value="onboarding" ${selectedClient.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
@@ -392,6 +395,18 @@
       const c = allClients.find(c => c.id === selectedClient.id);
       if (c) c.plan = e.target.value;
     });
+
+    const approveBtn = document.getElementById('approve-client-btn');
+    if (approveBtn) {
+      approveBtn.addEventListener('click', async () => {
+        await supabaseClient.from('profiles').update({ is_approved: true }).eq('id', selectedClient.id);
+        selectedClient.is_approved = true;
+        const c = allClients.find(c => c.id === selectedClient.id);
+        if (c) c.is_approved = true;
+        renderClientPanel();
+        renderClientList(allClients);
+      });
+    }
 
     document.getElementById('admin-message-form').addEventListener('submit', sendAdminMessage);
     document.getElementById('upload-report-btn').addEventListener('click', uploadReport);

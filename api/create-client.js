@@ -50,7 +50,7 @@ export default async function handler(req, res) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { business_name, contact_name, phone }
+      user_metadata: { business_name, contact_name, phone, is_approved: true }
     })
   });
   const createData = await createRes.json();

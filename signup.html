@@ -158,11 +158,13 @@
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
+    const whatsappMessage = encodeURIComponent("Hello, I just created an account with BINet Funnel Digitals. Please activate my account for fast and easy operation.");
     const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
-        data: { business_name, contact_name, phone }
+        data: { business_name, contact_name, phone },
+        emailRedirectTo: `https://wa.me/2348117090999?text=${whatsappMessage}`
       }
     });
 
@@ -179,7 +181,7 @@
     }
 
     form.style.display = 'none';
-    successBox.textContent = 'Account created! Check ' + email + ' for a confirmation link, then log in.';
+    successBox.textContent = 'Account created! Check ' + email + ' for a confirmation link. After confirming, you\'ll be sent to WhatsApp to let us know — we\'ll activate your account shortly after.';
     successBox.style.display = 'block';
   });
 </script>

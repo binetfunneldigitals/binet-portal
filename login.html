@@ -155,9 +155,18 @@
 
     if (profile.role === 'admin') {
       window.location.href = 'admin.html';
-    } else {
-      window.location.href = 'dashboard.html';
+      return;
     }
+
+    if (!profile.is_approved) {
+      await supabaseClient.auth.signOut();
+      errorBox.textContent = 'Your account is pending approval. We\'ve been notified — please allow some time, or message us on WhatsApp for faster activation.';
+      errorBox.style.display = 'block';
+      loginBtn.textContent = 'Log In';
+      return;
+    }
+
+    window.location.href = 'dashboard.html';
   });
 </script>
 
