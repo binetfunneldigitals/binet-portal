@@ -142,7 +142,7 @@
 
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
-      .select('role')
+      .select('role, is_approved')
       .eq('id', data.user.id)
       .single();
 
