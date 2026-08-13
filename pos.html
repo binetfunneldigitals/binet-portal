@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POS Checkout — BINet Funnel Digitals</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js"></script>
+<style>
+  .pos-layout{ display:grid; grid-template-columns:1fr 380px; min-height:calc(100vh - 65px); }
+  .pos-products{ padding:24px; overflow-y:auto; }
+  .pos-cart{ background:var(--white); border-left:1px solid #E7E9EE; padding:24px; display:flex; flex-direction:column; }
+  .pos-search{ width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DDE1E7; margin-bottom:18px; font-size:0.95rem; }
+  .pos-product-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:12px; }
+  .pos-product-card{
+    background:var(--white); border:1px solid #E7E9EE; border-radius:12px; padding:12px; cursor:pointer;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .pos-product-card:hover{ border-color:var(--green); transform:translateY(-2px); }
+  .pos-product-card.out-of-stock{ opacity:0.45; cursor:not-allowed; }
+  .pos-product-card img{ width:100%; height:80px; object-fit:cover; border-radius:8px; margin-bottom:8px; background:var(--off-white); }
+  .pos-product-card .no-img{ width:100%; height:80px; border-radius:8px; margin-bottom:8px; background:var(--off-white); display:flex; align-items:center; justify-content:center; font-size:1.6rem; color:#C9D0DC; }
+  .pos-product-card h4{ font-size:0.85rem; margin-bottom:4px; }
+  .pos-product-card p{ font-size:0.78rem; color:var(--slate); }
+  .pos-product-card .stock-tag{ font-size:0.7rem; color:var(--green); font-weight:600; }
+  .pos-product-card.out-of-stock .stock-tag{ color:#D64545; }
+  .cart-items{ flex:1; overflow-y:auto; margin-bottom:16px; }
+  .cart-item{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #EEF0F3; }
+  .cart-item h5{ font-size:0.85rem; margin-bottom:2px; }
+  .cart-item p{ font-size:0.78rem; color:var(--slate); }
+  .cart-qty-controls{ display:flex; align-items:center; gap:6px; }
+  .cart-qty-controls button{ width:24px; height:24px; border-radius:6px; border:1px solid #DDE1E7; background:var(--off-white); cursor:pointer; font-size:0.85rem; }
+  .cart-totals{ border-top:1px solid #E7E9EE; padding-top:14px; margin-bottom:16px; }
+  .cart-totals .row{ display:flex; justify-content:space-between; font-size:0.88rem; margin-bottom:6px; color:var(--slate); }
+  .cart-totals .row.total{ font-size:1.1rem; font-weight:700; color:var(--navy); margin-top:8px; }
+  .pos-field label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px; }
+  .pos-field input, .pos-field select{ width:100%; padding:9px 10px; border-radius:7px; border:1px solid #DDE1E7; background:var(--off-white); font-size:0.88rem; margin-bottom:10px; }
+  .receipt-modal{ position:fixed; inset:0; background:rgba(10,22,40,0.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .receipt-modal.open{ display:flex; }
+  .receipt-box{ background:var(--white); border-radius:14px; padding:32px; max-width:380px; width:100%; max-height:85vh; overflow-y:auto; }
+  @media (max-width:900px){ .pos-layout{ grid-template-columns:1fr; } .pos-cart{ border-left:none; border-top:1px solid #E7E9EE; } }
+</style>
+</head>
+<body class="dash-shell">
+
+<div class="dash-topbar">
+  <div class="wrap">
+    <a class="brand" href="dashboard.html">
+      <img src="assets/logo.png" alt="BINet Funnel Digitals logo" style="height:32px;">
+      <span>Point of Sale</span>
+    </a>
+    <div class="dash-user">
+      <span id="user-label">Loading...</span>
+      <a href="dashboard.html" class="btn btn-outline">← Back to Dashboard</a>
+    </div>
+  </div>
+</div>
+
+<div class="pos-layout">
+  <div class="pos-products">
+    <input type="text" class="pos-search" id="product-search" placeholder="Search by product name or code...">
+    <div class="pos-product-grid" id="product-grid">
+      <p class="empty-state">Loading products...</p>
+    </div>
+  </div>
+
+  <div class="pos-cart">
+    <h3 style="font-size:1.05rem; margin-bottom:16px;">Current Sale</h3>
+    <div class="cart-items" id="cart-items">
+      <p class="empty-state">Cart is empty. Tap a product to add it.</p>
+    </div>
+
+    <div class="cart-totals">
+      <div class="row"><span>Subtotal</span><span id="cart-subtotal">₦0</span></div>
+      <div class="pos-field" style="margin-top:10px;">
+        <label>Discount (₦)</label>
+        <input type="number" id="cart-discount" value="0" min="0">
+      </div>
+      <div class="row total"><span>Total</span><span id="cart-total">₦0</span></div>
+    </div>
+
+    <div class="pos-field">
+      <label>Customer name (optional)</label>
+      <input type="text" id="customer-name">
+    </div>
+    <div class="pos-field">
+      <label>Customer phone (optional)</label>
+      <input type="text" id="customer-phone">
+    </div>
+    <div class="pos-field">
+      <label>Payment method</label>
+      <select id="payment-method">
+        <option value="cash">Cash</option>
+        <option value="transfer">Bank Transfer</option>
+        <option value="card">Card</option>
+        <option value="mobile_money">Mobile Money</option>
+      </select>
+    </div>
+    <div class="pos-field" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="is-credit-check" style="width:auto; margin:0;">
+      <label style="margin:0;">This is a credit sale (pay later)</label>
+    </div>
+    <div class="pos-field" id="amount-paid-wrap" style="display:none;">
+      <label>Amount paid now (₦)</label>
+      <input type="number" id="amount-paid" value="0" min="0">
+    </div>
+
+    <button class="btn btn-green" id="complete-sale-btn" style="width:100%; justify-content:center; padding:13px;">Complete Sale</button>
+  </div>
+</div>
+
+<div class="receipt-modal" id="receipt-modal">
+  <div class="receipt-box" id="receipt-box"></div>
+</div>
+
+<script>
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentUser = null;
+  let allProducts = [];
+  let cart = [];
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  function money(n) {
+    return '₦' + Number(n || 0).toLocaleString();
+  }
+
+  (async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+    if (!profile) { window.location.href = 'login.html'; return; }
+
+    if (profile.plan !== 'pro' && profile.plan !== 'enterprise') {
+      alert('POS Checkout is available on Pro and Enterprise plans. Contact us to upgrade.');
+      window.location.href = 'dashboard.html';
+      return;
+    }
+
+    currentUser = { id: session.user.id, ...profile };
+    document.getElementById('user-label').textContent = profile.business_name || profile.email;
+    loadProducts();
+  })();
+
+  async function loadProducts() {
+    const { data, error } = await supabaseClient
+      .from('products')
+      .select('*')
+      .eq('client_id', currentUser.id)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    allProducts = data || [];
+    renderProductGrid(allProducts);
+  }
+
+  function renderProductGrid(products) {
+    const grid = document.getElementById('product-grid');
+    if (products.length === 0) {
+      grid.innerHTML = '<p class="empty-state">No active products found. Add some from your dashboard.</p>';
+      return;
+    }
+    grid.innerHTML = products.map(p => `
+      <div class="pos-product-card ${p.quantity <= 0 ? 'out-of-stock' : ''}" data-id="${p.id}">
+        ${p.image_url ? `<img src="${escapeHtml(p.image_url)}">` : `<div class="no-img">📦</div>`}
+        <h4>${escapeHtml(p.name)}</h4>
+        <p>${p.product_code ? escapeHtml(p.product_code) : ''}</p>
+        <p>${money(p.selling_price)}</p>
+        <p class="stock-tag">${p.quantity > 0 ? p.quantity + ' in stock' : 'Out of stock'}</p>
+      </div>
+    `).join('');
+
+    grid.querySelectorAll('.pos-product-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const product = allProducts.find(p => p.id === card.dataset.id);
+        if (product.quantity <= 0) return;
+        addToCart(product);
+      });
+    });
+  }
+
+  document.getElementById('product-search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    renderProductGrid(allProducts.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.product_code || '').toLowerCase().includes(q)
+    ));
+  });
+
+  function addToCart(product) {
+    const existing = cart.find(c => c.product_id === product.id);
+    if (existing) {
+      if (existing.quantity + 1 > product.quantity) { alert('Not enough stock.'); return; }
+      existing.quantity += 1;
+    } else {
+      cart.push({
+        product_id: product.id,
+        name: product.name,
+        unit_price: product.selling_price || 0,
+        quantity: 1,
+        maxStock: product.quantity
+      });
+    }
+    renderCart();
+  }
+
+  function renderCart() {
+    const cartEl = document.getElementById('cart-items');
+    if (cart.length === 0) {
+      cartEl.innerHTML = '<p class="empty-state">Cart is empty. Tap a product to add it.</p>';
+    } else {
+      cartEl.innerHTML = cart.map((item, i) => `
+        <div class="cart-item">
+          <div>
+            <h5>${escapeHtml(item.name)}</h5>
+            <p>${money(item.unit_price)} × ${item.quantity} = ${money(item.unit_price * item.quantity)}</p>
+          </div>
+          <div class="cart-qty-controls">
+            <button data-dec="${i}">−</button>
+            <span>${item.quantity}</span>
+            <button data-inc="${i}">+</button>
+            <button data-remove="${i}" style="color:#791F1F;">✕</button>
+          </div>
+        </div>
+      `).join('');
+
+      cartEl.querySelectorAll('[data-inc]').forEach(btn => btn.addEventListener('click', () => {
+        const item = cart[btn.dataset.inc];
+        if (item.quantity + 1 > item.maxStock) { alert('Not enough stock.'); return; }
+        item.quantity++; renderCart();
+      }));
+      cartEl.querySelectorAll('[data-dec]').forEach(btn => btn.addEventListener('click', () => {
+        const item = cart[btn.dataset.dec];
+        item.quantity = Math.max(1, item.quantity - 1); renderCart();
+      }));
+      cartEl.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
+        cart.splice(btn.dataset.remove, 1); renderCart();
+      }));
+    }
+    updateTotals();
+  }
+
+  function updateTotals() {
+    const subtotal = cart.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const discount = parseFloat(document.getElementById('cart-discount').value) || 0;
+    const total = Math.max(0, subtotal - discount);
+    document.getElementById('cart-subtotal').textContent = money(subtotal);
+    document.getElementById('cart-total').textContent = money(total);
+  }
+
+  document.getElementById('cart-discount').addEventListener('input', updateTotals);
+
+  document.getElementById('is-credit-check').addEventListener('change', (e) => {
+    document.getElementById('amount-paid-wrap').style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  document.getElementById('complete-sale-btn').addEventListener('click', async () => {
+    if (cart.length === 0) { alert('Cart is empty.'); return; }
+
+    const subtotal = cart.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const discount = parseFloat(document.getElementById('cart-discount').value) || 0;
+    const total = Math.max(0, subtotal - discount);
+    const isCredit = document.getElementById('is-credit-check').checked;
+    const amountPaid = isCredit ? (parseFloat(document.getElementById('amount-paid').value) || 0) : total;
+    const balance = Math.max(0, total - amountPaid);
+    const paymentMethod = document.getElementById('payment-method').value;
+    const customerName = document.getElementById('customer-name').value.trim();
+    const customerPhone = document.getElementById('customer-phone').value.trim();
+    const btn = document.getElementById('complete-sale-btn');
+
+    btn.textContent = 'Processing...';
+
+    const { data: sale, error: saleError } = await supabaseClient.from('sales').insert({
+      client_id: currentUser.id,
+      subtotal, discount, total,
+      payment_method: paymentMethod,
+      is_credit: isCredit,
+      amount_paid: amountPaid,
+      balance,
+      customer_name: customerName || null,
+      customer_phone: customerPhone || null
+    }).select().single();
+
+    if (saleError) {
+      alert('Could not complete sale: ' + saleError.message);
+      btn.textContent = 'Complete Sale';
+      return;
+    }
+
+    for (const item of cart) {
+      const { error: itemError } = await supabaseClient.from('sale_items').insert({
+        sale_id: sale.id,
+        product_id: item.product_id,
+        product_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        line_total: item.unit_price * item.quantity
+      });
+      if (itemError) {
+        alert('Warning: some items may not have been recorded (' + itemError.message + '). Check your stock levels.');
+      }
+    }
+
+    btn.textContent = 'Complete Sale';
+    showReceipt(sale);
+    cart = [];
+    document.getElementById('cart-discount').value = '0';
+    document.getElementById('customer-name').value = '';
+    document.getElementById('customer-phone').value = '';
+    document.getElementById('is-credit-check').checked = false;
+    document.getElementById('amount-paid-wrap').style.display = 'none';
+    renderCart();
+    loadProducts();
+  });
+
+  function showReceipt(sale) {
+    const box = document.getElementById('receipt-box');
+    box.innerHTML = `
+      <div style="text-align:center; margin-bottom:20px;">
+        <img src="assets/logo.png" style="height:32px; margin-bottom:10px;">
+        <h3 style="font-size:1.1rem;">${escapeHtml(currentUser.business_name || 'Receipt')}</h3>
+        <p style="font-size:0.8rem; color:var(--slate);">${new Date(sale.created_at).toLocaleString()}</p>
+      </div>
+      <div style="border-top:1px dashed #DDE1E7; border-bottom:1px dashed #DDE1E7; padding:14px 0; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;"><span>Subtotal</span><span>${money(sale.subtotal)}</span></div>
+        <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;"><span>Discount</span><span>-${money(sale.discount)}</span></div>
+        <div style="display:flex; justify-content:space-between; font-size:1.05rem; font-weight:700;"><span>Total</span><span>${money(sale.total)}</span></div>
+      </div>
+      <div style="font-size:0.85rem; color:var(--slate); margin-bottom:20px;">
+        <p>Payment: ${sale.payment_method.replace('_',' ')}</p>
+        ${sale.is_credit ? `<p>Paid now: ${money(sale.amount_paid)}</p><p>Balance owed: ${money(sale.balance)}</p>` : ''}
+        ${sale.customer_name ? `<p>Customer: ${escapeHtml(sale.customer_name)}</p>` : ''}
+      </div>
+      <button class="btn btn-green" style="width:100%; justify-content:center;" onclick="document.getElementById('receipt-modal').classList.remove('open')">Done</button>
+    `;
+    document.getElementById('receipt-modal').classList.add('open');
+  }
+</script>
+
+</body>
+</html>

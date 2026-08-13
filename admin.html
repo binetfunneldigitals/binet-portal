@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — BINet Funnel Digitals</title>
-<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
@@ -230,7 +229,7 @@
     }
     listEl.innerHTML = clients.map(c => `
       <div class="client-item ${selectedClient && selectedClient.id === c.id ? 'active' : ''}" data-id="${c.id}">
-        <h4><span class="status-dot ${c.status || 'active'}"></span>${escapeHtml(c.business_name || c.email)} ${!c.is_approved ? '<span style="color:#D64545; font-size:0.7rem; font-weight:700;">PENDING</span>' : ''}</h4>
+        <h4><span class="status-dot ${c.status || 'active'}"></span>${escapeHtml(c.business_name || c.email)}</h4>
         <p>${escapeHtml(c.contact_name || c.email)}</p>
         ${unreadCounts[c.id] ? `<span class="unread-badge">${unreadCounts[c.id]}</span>` : ''}
       </div>
@@ -277,10 +276,7 @@
           <h1 style="font-size:1.5rem; margin-bottom:4px;">${escapeHtml(selectedClient.business_name || selectedClient.email)}</h1>
           <p class="sub" style="margin-bottom:0;">${escapeHtml(selectedClient.contact_name || '')} ${selectedClient.phone ? '· ' + escapeHtml(selectedClient.phone) : ''} · ${escapeHtml(selectedClient.email)}</p>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          ${selectedClient.is_approved
-            ? '<span class="status-badge status-done">✓ Approved</span>'
-            : '<button id="approve-client-btn" class="btn btn-green" style="padding:8px 14px; font-size:0.85rem;">⏳ Activate Account</button>'}
+        <div style="display:flex; gap:8px;">
           <select class="status-select" id="client-status-select">
             <option value="active" ${selectedClient.status === 'active' || !selectedClient.status ? 'selected' : ''}>Active</option>
             <option value="onboarding" ${selectedClient.status === 'onboarding' ? 'selected' : ''}>Onboarding</option>
@@ -298,7 +294,7 @@
         <button class="tab-btn active" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="reports">Reports</button>
         <button class="tab-btn" data-tab="requests">Requests</button>
-        <button class="tab-btn" data-tab="inventory">Inventory</button>
+        <button class="tab-btn" data-tab="inventory">Products</button>
         <button class="tab-btn" data-tab="notes">Notes</button>
       </div>
 
@@ -349,15 +345,18 @@
 
       <div class="tab-panel" id="tab-inventory">
         <div class="card-box">
-          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Manage this client's inventory. Note: they can only manage it themselves if their plan is Pro or Enterprise.</p>
+          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Manage this client's products. They can only manage these themselves if their plan is Pro or Enterprise.</p>
           <div id="admin-inventory-list"><p class="empty-state">Loading...</p></div>
           <div class="upload-row">
-            <div class="field"><label>Item name</label><input type="text" id="admin-inv-name"></div>
-            <div class="field"><label>SKU (optional)</label><input type="text" id="admin-inv-sku"></div>
+            <div class="field"><label>Product code</label><input type="text" id="admin-inv-code"></div>
+            <div class="field"><label>Name</label><input type="text" id="admin-inv-name"></div>
             <div class="field"><label>Category</label><input type="text" id="admin-inv-category"></div>
+          </div>
+          <div class="upload-row">
+            <div class="field"><label>Cost price (₦)</label><input type="number" id="admin-inv-cost" step="0.01" min="0"></div>
+            <div class="field"><label>Selling price (₦)</label><input type="number" id="admin-inv-price" step="0.01" min="0"></div>
             <div class="field"><label>Quantity</label><input type="number" id="admin-inv-quantity" value="0" min="0"></div>
-            <div class="field"><label>Price (₦)</label><input type="number" id="admin-inv-price" step="0.01" min="0"></div>
-            <button class="btn btn-green" id="admin-add-inventory-btn">Add Item</button>
+            <button class="btn btn-green" id="admin-add-inventory-btn">Add Product</button>
           </div>
         </div>
       </div>
@@ -395,18 +394,6 @@
       const c = allClients.find(c => c.id === selectedClient.id);
       if (c) c.plan = e.target.value;
     });
-
-    const approveBtn = document.getElementById('approve-client-btn');
-    if (approveBtn) {
-      approveBtn.addEventListener('click', async () => {
-        await supabaseClient.from('profiles').update({ is_approved: true }).eq('id', selectedClient.id);
-        selectedClient.is_approved = true;
-        const c = allClients.find(c => c.id === selectedClient.id);
-        if (c) c.is_approved = true;
-        renderClientPanel();
-        renderClientList(allClients);
-      });
-    }
 
     document.getElementById('admin-message-form').addEventListener('submit', sendAdminMessage);
     document.getElementById('upload-report-btn').addEventListener('click', uploadReport);
@@ -455,17 +442,17 @@
     msgEl.textContent = error ? 'Error: ' + error.message : 'Saved!';
   }
 
-  // ---- Inventory (admin side, works regardless of client's plan) ----
+  // ---- Products (admin side, works regardless of client's plan) ----
   async function loadAdminInventory() {
     const { data, error } = await supabaseClient
-      .from('inventory_items')
+      .from('products')
       .select('*')
       .eq('client_id', selectedClient.id)
       .order('name', { ascending: true });
 
     const list = document.getElementById('admin-inventory-list');
     if (error || !data || data.length === 0) {
-      list.innerHTML = '<p class="empty-state">No inventory items yet.</p>';
+      list.innerHTML = '<p class="empty-state">No products yet for this client.</p>';
       return;
     }
     list.innerHTML = data.map(item => {
@@ -474,7 +461,7 @@
         <div class="list-item">
           <div>
             <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
-            <p>${item.sku ? 'SKU: ' + escapeHtml(item.sku) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.price ? ' · ₦' + Number(item.price).toLocaleString() : ''}</p>
+            <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.selling_price ? ' · ₦' + Number(item.selling_price).toLocaleString() : ''}</p>
           </div>
           <button class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7; padding:6px 10px;" data-delete="${item.id}">Delete</button>
         </div>
@@ -483,35 +470,38 @@
 
     list.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Delete this item?')) return;
-        await supabaseClient.from('inventory_items').delete().eq('id', btn.dataset.delete);
+        if (!confirm('Delete this product? (Blocked automatically if it has past sales.)')) return;
+        const { error } = await supabaseClient.from('products').delete().eq('id', btn.dataset.delete);
+        if (error) { alert('Could not delete: this product may have past sales.'); return; }
         loadAdminInventory();
       });
     });
   }
 
   async function addAdminInventoryItem() {
+    const product_code = document.getElementById('admin-inv-code').value.trim();
     const name = document.getElementById('admin-inv-name').value.trim();
-    const sku = document.getElementById('admin-inv-sku').value.trim();
     const category = document.getElementById('admin-inv-category').value.trim();
+    const cost_price = parseFloat(document.getElementById('admin-inv-cost').value) || null;
+    const selling_price = parseFloat(document.getElementById('admin-inv-price').value) || null;
     const quantity = parseInt(document.getElementById('admin-inv-quantity').value) || 0;
-    const price = parseFloat(document.getElementById('admin-inv-price').value) || null;
 
-    if (!name) { alert('Please enter an item name.'); return; }
+    if (!name) { alert('Please enter a product name.'); return; }
 
-    const { error } = await supabaseClient.from('inventory_items').insert({
-      client_id: selectedClient.id, name, sku, category, quantity, price
+    const { error } = await supabaseClient.from('products').insert({
+      client_id: selectedClient.id, product_code, name, category, cost_price, selling_price, quantity
     });
 
     if (!error) {
+      document.getElementById('admin-inv-code').value = '';
       document.getElementById('admin-inv-name').value = '';
-      document.getElementById('admin-inv-sku').value = '';
       document.getElementById('admin-inv-category').value = '';
-      document.getElementById('admin-inv-quantity').value = '0';
+      document.getElementById('admin-inv-cost').value = '';
       document.getElementById('admin-inv-price').value = '';
+      document.getElementById('admin-inv-quantity').value = '0';
       loadAdminInventory();
     } else {
-      alert('Could not add item: ' + error.message);
+      alert('Could not add product: ' + error.message);
     }
   }
 

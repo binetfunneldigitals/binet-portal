@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — BINet Funnel Digitals</title>
-<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
@@ -57,7 +56,7 @@
     <button class="tab-btn" data-tab="messages">Messages<span class="tab-dot" id="messages-tab-dot"></span></button>
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="requests">Requests</button>
-    <button class="tab-btn" data-tab="inventory">Inventory</button>
+    <button class="tab-btn" data-tab="inventory">Products</button>
     <button class="tab-btn" data-tab="account">Account</button>
   </div>
 
@@ -126,20 +125,37 @@
   <!-- INVENTORY TAB -->
   <div class="tab-panel" id="tab-inventory">
     <div class="card-box" id="inventory-upgrade-card" style="display:none; text-align:center; padding:48px 24px;">
-      <h3 style="font-size:1.1rem; margin-bottom:10px;">📦 Inventory Management</h3>
-      <p style="color:var(--slate); max-width:420px; margin:0 auto 20px;">Track your products or services, monitor stock levels, and stay on top of what's running low — available on Pro and Enterprise plans.</p>
+      <h3 style="font-size:1.1rem; margin-bottom:10px;">📦 Products &amp; Point of Sale</h3>
+      <p style="color:var(--slate); max-width:420px; margin:0 auto 20px;">Manage your product catalog and run sales through a real checkout screen — available on Pro and Enterprise plans.</p>
       <a href="https://wa.me/2348117090999" target="_blank" rel="noopener" class="btn btn-green">Upgrade My Plan</a>
     </div>
     <div id="inventory-manager" style="display:none;">
+      <div class="card-box" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h3 style="font-size:1rem; margin-bottom:4px;">Your Products</h3>
+          <p style="font-size:0.85rem; color:var(--slate);">Manage what you sell. Ready to sell? Open the checkout screen.</p>
+        </div>
+        <a href="pos.html" class="btn btn-green">🧾 Open POS Checkout</a>
+      </div>
       <div class="card-box">
         <div id="inventory-list"><p class="empty-state">Loading...</p></div>
         <div class="upload-row">
-          <div class="field"><label>Item name</label><input type="text" id="inv-name" placeholder="e.g. Blue T-Shirt (M)"></div>
-          <div class="field"><label>SKU (optional)</label><input type="text" id="inv-sku"></div>
+          <div class="field"><label>Product code</label><input type="text" id="inv-code" placeholder="e.g. TS-BLU-M"></div>
+          <div class="field"><label>Name</label><input type="text" id="inv-name" placeholder="e.g. Blue T-Shirt (M)"></div>
           <div class="field"><label>Category</label><input type="text" id="inv-category"></div>
-          <div class="field"><label>Quantity</label><input type="number" id="inv-quantity" value="0" min="0"></div>
-          <div class="field"><label>Price (₦)</label><input type="number" id="inv-price" step="0.01" min="0"></div>
-          <button class="btn btn-green" id="add-inventory-btn">Add Item</button>
+          <div class="field"><label>Brand</label><input type="text" id="inv-brand"></div>
+        </div>
+        <div class="upload-row">
+          <div class="field"><label>Unit type</label><input type="text" id="inv-unit" placeholder="e.g. pcs, kg, carton" value="unit"></div>
+          <div class="field"><label>Cost price (₦)</label><input type="number" id="inv-cost" step="0.01" min="0"></div>
+          <div class="field"><label>Selling price (₦)</label><input type="number" id="inv-selling" step="0.01" min="0"></div>
+          <div class="field"><label>Minimum price (₦)</label><input type="number" id="inv-min-price" step="0.01" min="0"></div>
+        </div>
+        <div class="upload-row">
+          <div class="field"><label>Quantity in stock</label><input type="number" id="inv-quantity" value="0" min="0"></div>
+          <div class="field"><label>Low stock alert level</label><input type="number" id="inv-low-stock" value="5" min="0"></div>
+          <div class="field"><label>Product image</label><input type="file" id="inv-image" accept="image/*"></div>
+          <button class="btn btn-green" id="add-inventory-btn">Add Product</button>
         </div>
       </div>
     </div>
@@ -502,23 +518,26 @@
 
   async function loadInventory() {
     const { data, error } = await supabaseClient
-      .from('inventory_items')
+      .from('products')
       .select('*')
       .eq('client_id', currentUser.id)
       .order('name', { ascending: true });
 
     const list = document.getElementById('inventory-list');
     if (error || !data || data.length === 0) {
-      list.innerHTML = '<p class="empty-state">No items yet. Add your first one below.</p>';
+      list.innerHTML = '<p class="empty-state">No products yet. Add your first one below.</p>';
       return;
     }
     list.innerHTML = data.map(item => {
       const low = item.quantity <= (item.low_stock_threshold || 5);
       return `
         <div class="list-item">
-          <div>
-            <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
-            <p>${item.sku ? 'SKU: ' + escapeHtml(item.sku) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.price ? ' · ₦' + Number(item.price).toLocaleString() : ''}</p>
+          <div style="display:flex; gap:12px; align-items:center;">
+            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" style="width:44px; height:44px; border-radius:8px; object-fit:cover;">` : ''}
+            <div>
+              <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''} ${!item.is_active ? '<span class="status-badge status-paused" style="margin-left:6px; background:#EEF0F3; color:var(--slate);">Inactive</span>' : ''}</h4>
+              <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.selling_price ? ' · ₦' + Number(item.selling_price).toLocaleString() : ''}</p>
+            </div>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
             <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 10px;" data-adjust="-1" data-id="${item.id}">−</button>
@@ -533,42 +552,65 @@
       btn.addEventListener('click', async () => {
         const item = data.find(i => i.id === btn.dataset.id);
         const newQty = Math.max(0, item.quantity + parseInt(btn.dataset.adjust));
-        await supabaseClient.from('inventory_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', item.id);
+        await supabaseClient.from('products').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', item.id);
         loadInventory();
       });
     });
 
     list.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Delete this item?')) return;
-        await supabaseClient.from('inventory_items').delete().eq('id', btn.dataset.delete);
+        if (!confirm('Delete this product? (If it has past sales, deletion will be blocked automatically.)')) return;
+        const { error } = await supabaseClient.from('products').delete().eq('id', btn.dataset.delete);
+        if (error) { alert('Could not delete: this product may have past sales. Consider marking it inactive instead.'); return; }
         loadInventory();
       });
     });
   }
 
   document.getElementById('add-inventory-btn').addEventListener('click', async () => {
+    const product_code = document.getElementById('inv-code').value.trim();
     const name = document.getElementById('inv-name').value.trim();
-    const sku = document.getElementById('inv-sku').value.trim();
     const category = document.getElementById('inv-category').value.trim();
+    const brand = document.getElementById('inv-brand').value.trim();
+    const unit_type = document.getElementById('inv-unit').value.trim() || 'unit';
+    const cost_price = parseFloat(document.getElementById('inv-cost').value) || null;
+    const selling_price = parseFloat(document.getElementById('inv-selling').value) || null;
+    const minimum_price = parseFloat(document.getElementById('inv-min-price').value) || null;
     const quantity = parseInt(document.getElementById('inv-quantity').value) || 0;
-    const price = parseFloat(document.getElementById('inv-price').value) || null;
+    const low_stock_threshold = parseInt(document.getElementById('inv-low-stock').value) || 5;
+    const imageInput = document.getElementById('inv-image');
+    const btn = document.getElementById('add-inventory-btn');
 
-    if (!name) { alert('Please enter an item name.'); return; }
+    if (!name) { alert('Please enter a product name.'); return; }
 
-    const { error } = await supabaseClient.from('inventory_items').insert({
-      client_id: currentUser.id, name, sku, category, quantity, price
+    btn.textContent = 'Adding...';
+    let image_url = null;
+
+    if (imageInput.files[0]) {
+      const file = imageInput.files[0];
+      const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabaseClient.storage.from('product-images').upload(filePath, file);
+      if (!uploadError) {
+        const { data: urlData } = supabaseClient.storage.from('product-images').getPublicUrl(filePath);
+        image_url = urlData.publicUrl;
+      }
+    }
+
+    const { error } = await supabaseClient.from('products').insert({
+      client_id: currentUser.id, product_code, name, category, brand, unit_type,
+      cost_price, selling_price, minimum_price, quantity, low_stock_threshold, image_url
     });
 
+    btn.textContent = 'Add Product';
     if (!error) {
-      document.getElementById('inv-name').value = '';
-      document.getElementById('inv-sku').value = '';
-      document.getElementById('inv-category').value = '';
+      ['inv-code','inv-name','inv-category','inv-brand','inv-cost','inv-selling','inv-min-price'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('inv-unit').value = 'unit';
       document.getElementById('inv-quantity').value = '0';
-      document.getElementById('inv-price').value = '';
+      document.getElementById('inv-low-stock').value = '5';
+      imageInput.value = '';
       loadInventory();
     } else {
-      alert('Could not add item: ' + error.message);
+      alert('Could not add product: ' + error.message);
     }
   });
 </script>
