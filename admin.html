@@ -83,6 +83,7 @@
       </div>
       <button id="broadcast-btn" class="btn btn-green" style="align-self:center;">📢 New Broadcast</button>
       <button id="analytics-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">📊 Analytics</button>
+      <button id="security-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">🔒 Security</button>
       <button id="home-btn" class="btn btn-outline" style="align-self:center; color:var(--navy); border-color:#DDE1E7;">🏠 Home</button>
     </div>
 
@@ -345,18 +346,25 @@
 
       <div class="tab-panel" id="tab-inventory">
         <div class="card-box">
-          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Manage this client's products. They can only manage these themselves if their plan is Pro or Enterprise.</p>
+          <p style="font-size:0.85rem; color:var(--slate); margin-bottom:14px;">Manage this client's products &amp; services. They can only manage these themselves if their plan is Pro or Enterprise.</p>
           <div id="admin-inventory-list"><p class="empty-state">Loading...</p></div>
           <div class="upload-row">
-            <div class="field"><label>Product code</label><input type="text" id="admin-inv-code"></div>
+            <div class="field">
+              <label>Type</label>
+              <select id="admin-inv-type" class="status-select" style="width:100%;">
+                <option value="product">Product</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
+            <div class="field"><label>Code (optional)</label><input type="text" id="admin-inv-code"></div>
             <div class="field"><label>Name</label><input type="text" id="admin-inv-name"></div>
             <div class="field"><label>Category</label><input type="text" id="admin-inv-category"></div>
           </div>
           <div class="upload-row">
             <div class="field"><label>Cost price (₦)</label><input type="number" id="admin-inv-cost" step="0.01" min="0"></div>
             <div class="field"><label>Selling price (₦)</label><input type="number" id="admin-inv-price" step="0.01" min="0"></div>
-            <div class="field"><label>Quantity</label><input type="number" id="admin-inv-quantity" value="0" min="0"></div>
-            <button class="btn btn-green" id="admin-add-inventory-btn">Add Product</button>
+            <div class="field" id="admin-inv-qty-wrap"><label>Quantity</label><input type="number" id="admin-inv-quantity" value="0" min="0"></div>
+            <button class="btn btn-green" id="admin-add-inventory-btn">Add Item</button>
           </div>
         </div>
       </div>
@@ -452,16 +460,17 @@
 
     const list = document.getElementById('admin-inventory-list');
     if (error || !data || data.length === 0) {
-      list.innerHTML = '<p class="empty-state">No products yet for this client.</p>';
+      list.innerHTML = '<p class="empty-state">No products or services yet for this client.</p>';
       return;
     }
     list.innerHTML = data.map(item => {
-      const low = item.quantity <= (item.low_stock_threshold || 5);
+      const isService = item.item_type === 'service';
+      const low = !isService && item.quantity <= (item.low_stock_threshold || 5);
       return `
         <div class="list-item">
           <div>
-            <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
-            <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.selling_price ? ' · ₦' + Number(item.selling_price).toLocaleString() : ''}</p>
+            <h4>${escapeHtml(item.name)} ${isService ? '<span class="status-badge status-in_progress" style="margin-left:8px;">Service</span>' : ''} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''}</h4>
+            <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}${isService ? '' : 'Qty: ' + item.quantity + ' · '}${item.selling_price ? '₦' + Number(item.selling_price).toLocaleString() : ''}</p>
           </div>
           <button class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7; padding:6px 10px;" data-delete="${item.id}">Delete</button>
         </div>
@@ -470,26 +479,27 @@
 
     list.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Delete this product? (Blocked automatically if it has past sales.)')) return;
+        if (!confirm('Delete this item? (Blocked automatically if it has past sales.)')) return;
         const { error } = await supabaseClient.from('products').delete().eq('id', btn.dataset.delete);
-        if (error) { alert('Could not delete: this product may have past sales.'); return; }
+        if (error) { alert('Could not delete: this item may have past sales.'); return; }
         loadAdminInventory();
       });
     });
   }
 
   async function addAdminInventoryItem() {
+    const item_type = document.getElementById('admin-inv-type').value;
     const product_code = document.getElementById('admin-inv-code').value.trim();
     const name = document.getElementById('admin-inv-name').value.trim();
     const category = document.getElementById('admin-inv-category').value.trim();
     const cost_price = parseFloat(document.getElementById('admin-inv-cost').value) || null;
     const selling_price = parseFloat(document.getElementById('admin-inv-price').value) || null;
-    const quantity = parseInt(document.getElementById('admin-inv-quantity').value) || 0;
+    const quantity = item_type === 'service' ? 0 : (parseInt(document.getElementById('admin-inv-quantity').value) || 0);
 
-    if (!name) { alert('Please enter a product name.'); return; }
+    if (!name) { alert('Please enter a name.'); return; }
 
     const { error } = await supabaseClient.from('products').insert({
-      client_id: selectedClient.id, product_code, name, category, cost_price, selling_price, quantity
+      client_id: selectedClient.id, item_type, product_code, name, category, cost_price, selling_price, quantity
     });
 
     if (!error) {
@@ -501,7 +511,7 @@
       document.getElementById('admin-inv-quantity').value = '0';
       loadAdminInventory();
     } else {
-      alert('Could not add product: ' + error.message);
+      alert('Could not add item: ' + error.message);
     }
   }
 
@@ -1121,6 +1131,91 @@
   }
 
   document.getElementById('analytics-btn').addEventListener('click', renderAnalyticsPanel);
+
+  // ==========================================================
+  // SECURITY / 2FA
+  // ==========================================================
+
+  async function renderSecurityPanel() {
+    selectedClient = null;
+    renderClientList(allClients);
+
+    const panel = document.getElementById('client-panel');
+    panel.innerHTML = `
+      <h1 style="font-size:1.5rem; margin-bottom:4px;">Security</h1>
+      <p class="sub" style="margin-bottom:24px;">Protect your admin account with two-factor authentication.</p>
+      <div class="card-box" id="mfa-status-box">
+        <p class="empty-state">Loading...</p>
+      </div>
+    `;
+
+    const { data: factors } = await supabaseClient.auth.mfa.listFactors();
+    const verifiedFactor = factors?.totp?.find(f => f.status === 'verified');
+
+    const box = document.getElementById('mfa-status-box');
+
+    if (verifiedFactor) {
+      box.innerHTML = `
+        <p style="font-size:0.95rem; margin-bottom:16px;"><span class="status-badge status-done">✓ Enabled</span> Two-factor authentication is active on your account.</p>
+        <button id="disable-mfa-btn" class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7;">Disable 2FA</button>
+      `;
+      document.getElementById('disable-mfa-btn').addEventListener('click', async () => {
+        if (!confirm('Disable two-factor authentication? This will make your account less secure.')) return;
+        await supabaseClient.auth.mfa.unenroll({ factorId: verifiedFactor.id });
+        renderSecurityPanel();
+      });
+    } else {
+      box.innerHTML = `
+        <p style="font-size:0.9rem; color:var(--slate); margin-bottom:16px;">Not enabled yet. Scan the QR code below with an authenticator app (Google Authenticator, Authy, or similar), then enter the 6-digit code it shows to confirm.</p>
+        <button id="start-mfa-btn" class="btn btn-green">Set Up Two-Factor Authentication</button>
+        <div id="mfa-setup-area" style="margin-top:20px; display:none;">
+          <img id="mfa-qr" style="width:180px; height:180px; border:1px solid #E7E9EE; border-radius:10px; padding:10px;">
+          <p style="font-size:0.8rem; color:var(--slate); margin:12px 0 4px;">Can't scan? Enter this code manually:</p>
+          <code id="mfa-secret" style="font-size:0.85rem; background:var(--off-white); padding:6px 10px; border-radius:6px; display:inline-block;"></code>
+          <div style="margin-top:16px; max-width:220px;">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:6px;">Enter 6-digit code</label>
+            <input type="text" id="mfa-verify-code" maxlength="6" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #DDE1E7; font-size:1.1rem; letter-spacing:4px; text-align:center;">
+          </div>
+          <button id="confirm-mfa-btn" class="btn btn-green" style="margin-top:12px;">Confirm &amp; Enable</button>
+          <p id="mfa-error" style="color:#791F1F; font-size:0.85rem; margin-top:10px;"></p>
+        </div>
+      `;
+
+      let currentFactorId = null;
+
+      document.getElementById('start-mfa-btn').addEventListener('click', async () => {
+        const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp' });
+        if (error) { alert('Could not start setup: ' + error.message); return; }
+        currentFactorId = data.id;
+        document.getElementById('mfa-qr').src = data.totp.qr_code;
+        document.getElementById('mfa-secret').textContent = data.totp.secret;
+        document.getElementById('mfa-setup-area').style.display = 'block';
+        document.getElementById('start-mfa-btn').style.display = 'none';
+      });
+
+      document.getElementById('confirm-mfa-btn').addEventListener('click', async () => {
+        const code = document.getElementById('mfa-verify-code').value.trim();
+        const errEl = document.getElementById('mfa-error');
+        if (!code) { errEl.textContent = 'Enter the 6-digit code from your app.'; return; }
+
+        const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId: currentFactorId });
+        if (challengeError) { errEl.textContent = challengeError.message; return; }
+
+        const { error: verifyError } = await supabaseClient.auth.mfa.verify({
+          factorId: currentFactorId,
+          challengeId: challenge.id,
+          code
+        });
+
+        if (verifyError) { errEl.textContent = 'Incorrect code, try again.'; return; }
+
+        alert('Two-factor authentication is now enabled!');
+        renderSecurityPanel();
+      });
+    }
+  }
+
+  document.getElementById('security-btn').addEventListener('click', renderSecurityPanel);
 </script>
 
 </body>

@@ -4,17 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — BINet Funnel Digitals</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-config.js"></script>
 <style>
-  .tab-btn{ position:relative; }
   .tab-dot{
-    position:absolute; top:6px; right:2px; width:8px; height:8px;
-    border-radius:50%; background:#D64545; display:none;
+    display:inline-block; width:8px; height:8px; margin-left:6px;
+    border-radius:50%; background:#D64545; vertical-align:middle;
   }
+  .client-nav-link{
+    display:flex; align-items:center; padding:12px 14px; border-radius:10px; margin-bottom:2px;
+    color:var(--navy); font-size:0.92rem; text-decoration:none; position:relative;
+  }
+  .client-nav-link:hover{ background:var(--off-white); }
+  .client-nav-link.active{ background:rgba(29,158,117,0.1); color:var(--green); font-weight:600; }
   .attach-btn{
     background:var(--off-white); border:1px solid #DDE1E7; border-radius:8px;
     padding:0 14px; cursor:pointer; font-size:1rem; color:var(--slate);
@@ -47,141 +53,151 @@
   </div>
 </div>
 
-<div class="dash-main">
-  <h1 id="welcome-heading">Welcome.</h1>
-  <p class="sub">This is your BINet Funnel Digitals client space — messages, reports, and requests all in one place.</p>
-
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="overview">Overview</button>
-    <button class="tab-btn" data-tab="messages">Messages<span class="tab-dot" id="messages-tab-dot"></span></button>
-    <button class="tab-btn" data-tab="reports">Reports</button>
-    <button class="tab-btn" data-tab="requests">Requests</button>
-    <button class="tab-btn" data-tab="inventory">Products</button>
-    <button class="tab-btn" data-tab="account">Account</button>
+<div class="admin-layout">
+  <div class="admin-sidebar">
+    <h2 id="welcome-heading" style="font-size:1.05rem; margin-bottom:20px; padding:0 4px;">Welcome.</h2>
+    <nav>
+      <a class="client-nav-link active" data-tab="overview" href="#overview">🏠 Overview</a>
+      <a class="client-nav-link" data-tab="messages" href="#messages">💬 Messages<span class="tab-dot" id="messages-tab-dot" style="display:none;"></span></a>
+      <a class="client-nav-link" data-tab="reports" href="#reports">📄 Reports</a>
+      <a class="client-nav-link" data-tab="requests" href="#requests">📝 Requests</a>
+      <a class="client-nav-link" data-tab="inventory" href="#inventory">📦 Products &amp; Services</a>
+      <a class="client-nav-link" href="pos.html">🧾 Point of Sale</a>
+      <a class="client-nav-link" data-tab="account" href="#account">⚙️ Account</a>
+    </nav>
   </div>
 
-  <!-- OVERVIEW TAB -->
-  <div class="tab-panel active" id="tab-overview">
-    <div id="welcome-banner" style="display:none; background:linear-gradient(135deg,#0A1628,#101f38); color:#fff; border-radius:14px; padding:26px 28px; margin-bottom:20px;">
-      <h3 style="font-size:1.1rem; margin-bottom:8px;">🎉 Welcome to BINet Funnel Digitals!</h3>
-      <p style="font-size:0.9rem; color:#B9C2D1; line-height:1.6;">Thanks for creating your account. Our team will review your details and reach out within 24 hours to get started. In the meantime, feel free to send us a message below or explore your dashboard.</p>
-    </div>
-    <div class="admin-stats" style="margin-bottom:16px;">
-      <div class="stat-card"><div class="num" id="ov-open-requests">0</div><div class="label">Open Requests</div></div>
-      <div class="stat-card"><div class="num" id="ov-reports">0</div><div class="label">Reports Available</div></div>
-      <div class="stat-card"><div class="num" id="ov-unread">0</div><div class="label">Unread Messages</div></div>
-    </div>
-    <div class="card-box">
-      <h3 style="font-size:1rem; margin-bottom:6px;">Recent Activity</h3>
-      <div id="overview-feed"><p class="empty-state">Loading...</p></div>
-    </div>
-  </div>
-
-  <!-- MESSAGES TAB -->
-  <div class="tab-panel" id="tab-messages">
-    <div class="card-box">
-      <div id="message-thread" class="message-thread">
-        <p class="empty-state">Loading messages...</p>
+  <div class="admin-content">
+    <!-- OVERVIEW TAB -->
+    <div class="tab-panel active" id="tab-overview">
+      <div id="welcome-banner" style="display:none; background:linear-gradient(135deg,#0A1628,#101f38); color:#fff; border-radius:14px; padding:26px 28px; margin-bottom:20px;">
+        <h3 style="font-size:1.1rem; margin-bottom:8px;">🎉 Welcome to BINet Funnel Digitals!</h3>
+        <p style="font-size:0.9rem; color:#B9C2D1; line-height:1.6;">Thanks for creating your account. Our team will review your details and reach out within 24 hours to get started. In the meantime, feel free to send us a message below or explore your dashboard.</p>
       </div>
-      <form id="message-form" class="message-input-row">
-        <button type="button" class="attach-btn" id="attach-btn" title="Attach a file">📎</button>
-        <input type="file" id="attach-input" style="display:none;">
-        <input type="text" id="message-input" placeholder="Type a message...">
-        <button type="submit" class="btn btn-green">Send</button>
-      </form>
-      <div class="attachment-chip" id="attachment-chip">
-        <span id="attachment-name"></span>
-        <button type="button" id="remove-attachment">✕</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- REPORTS TAB -->
-  <div class="tab-panel" id="tab-reports">
-    <div class="card-box">
-      <div id="reports-list">
-        <p class="empty-state">Loading reports...</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- REQUESTS TAB -->
-  <div class="tab-panel" id="tab-requests">
-    <div class="card-box">
-      <div id="requests-list">
-        <p class="empty-state">Loading requests...</p>
-      </div>
-      <div class="new-request-form">
-        <p style="font-weight:600; font-size:0.92rem;">Submit a new request</p>
-        <form id="request-form" style="display:flex; flex-direction:column; gap:14px;">
-          <input type="text" id="request-title" placeholder="Request title (e.g. Update Instagram bio)" required>
-          <textarea id="request-description" rows="3" placeholder="Add any details we should know..."></textarea>
-          <button type="submit" class="btn btn-green" style="align-self:flex-start;">Submit Request</button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- INVENTORY TAB -->
-  <div class="tab-panel" id="tab-inventory">
-    <div class="card-box" id="inventory-upgrade-card" style="display:none; text-align:center; padding:48px 24px;">
-      <h3 style="font-size:1.1rem; margin-bottom:10px;">📦 Products &amp; Point of Sale</h3>
-      <p style="color:var(--slate); max-width:420px; margin:0 auto 20px;">Manage your product catalog and run sales through a real checkout screen — available on Pro and Enterprise plans.</p>
-      <a href="https://wa.me/2348117090999" target="_blank" rel="noopener" class="btn btn-green">Upgrade My Plan</a>
-    </div>
-    <div id="inventory-manager" style="display:none;">
-      <div class="card-box" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h3 style="font-size:1rem; margin-bottom:4px;">Your Products</h3>
-          <p style="font-size:0.85rem; color:var(--slate);">Manage what you sell. Ready to sell? Open the checkout screen.</p>
-        </div>
-        <a href="pos.html" class="btn btn-green">🧾 Open POS Checkout</a>
+      <div class="admin-stats" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="num" id="ov-open-requests">0</div><div class="label">Open Requests</div></div>
+        <div class="stat-card"><div class="num" id="ov-reports">0</div><div class="label">Reports Available</div></div>
+        <div class="stat-card"><div class="num" id="ov-unread">0</div><div class="label">Unread Messages</div></div>
       </div>
       <div class="card-box">
-        <div id="inventory-list"><p class="empty-state">Loading...</p></div>
-        <div class="upload-row">
-          <div class="field"><label>Product code</label><input type="text" id="inv-code" placeholder="e.g. TS-BLU-M"></div>
-          <div class="field"><label>Name</label><input type="text" id="inv-name" placeholder="e.g. Blue T-Shirt (M)"></div>
-          <div class="field"><label>Category</label><input type="text" id="inv-category"></div>
-          <div class="field"><label>Brand</label><input type="text" id="inv-brand"></div>
-        </div>
-        <div class="upload-row">
-          <div class="field"><label>Unit type</label><input type="text" id="inv-unit" placeholder="e.g. pcs, kg, carton" value="unit"></div>
-          <div class="field"><label>Cost price (₦)</label><input type="number" id="inv-cost" step="0.01" min="0"></div>
-          <div class="field"><label>Selling price (₦)</label><input type="number" id="inv-selling" step="0.01" min="0"></div>
-          <div class="field"><label>Minimum price (₦)</label><input type="number" id="inv-min-price" step="0.01" min="0"></div>
-        </div>
-        <div class="upload-row">
-          <div class="field"><label>Quantity in stock</label><input type="number" id="inv-quantity" value="0" min="0"></div>
-          <div class="field"><label>Low stock alert level</label><input type="number" id="inv-low-stock" value="5" min="0"></div>
-          <div class="field"><label>Product image</label><input type="file" id="inv-image" accept="image/*"></div>
-          <button class="btn btn-green" id="add-inventory-btn">Add Product</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ACCOUNT TAB -->
-  <div class="tab-panel" id="tab-account">
-    <div class="card-box">
-      <h3 style="font-size:1rem; margin-bottom:16px;">Your Details</h3>
-      <div class="new-request-form" style="margin-top:0; padding-top:0; border-top:none;">
-        <input type="text" id="acc-business-name" placeholder="Business name">
-        <input type="text" id="acc-contact-name" placeholder="Contact name">
-        <input type="tel" id="acc-phone" placeholder="Phone">
-        <input type="email" id="acc-email" disabled style="opacity:0.6;">
-        <button id="save-profile-btn" class="btn btn-green" style="align-self:flex-start;">Save Changes</button>
-        <p id="profile-save-msg" style="font-size:0.85rem; color:var(--slate);"></p>
+        <h3 style="font-size:1rem; margin-bottom:6px;">Recent Activity</h3>
+        <div id="overview-feed"><p class="empty-state">Loading...</p></div>
       </div>
     </div>
 
-    <div class="card-box">
-      <h3 style="font-size:1rem; margin-bottom:16px;">Change Password</h3>
-      <div class="new-request-form" style="margin-top:0; padding-top:0; border-top:none;">
-        <input type="password" id="acc-new-password" placeholder="New password" minlength="6">
-        <input type="password" id="acc-confirm-password" placeholder="Confirm new password" minlength="6">
-        <button id="save-password-btn" class="btn btn-green" style="align-self:flex-start;">Update Password</button>
-        <p id="password-save-msg" style="font-size:0.85rem; color:var(--slate);"></p>
+    <!-- MESSAGES TAB -->
+    <div class="tab-panel" id="tab-messages">
+      <div class="card-box">
+        <div id="message-thread" class="message-thread">
+          <p class="empty-state">Loading messages...</p>
+        </div>
+        <form id="message-form" class="message-input-row">
+          <button type="button" class="attach-btn" id="attach-btn" title="Attach a file">📎</button>
+          <input type="file" id="attach-input" style="display:none;">
+          <input type="text" id="message-input" placeholder="Type a message...">
+          <button type="submit" class="btn btn-green">Send</button>
+        </form>
+        <div class="attachment-chip" id="attachment-chip">
+          <span id="attachment-name"></span>
+          <button type="button" id="remove-attachment">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div class="tab-panel" id="tab-reports">
+      <div class="card-box">
+        <div id="reports-list">
+          <p class="empty-state">Loading reports...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- REQUESTS TAB -->
+    <div class="tab-panel" id="tab-requests">
+      <div class="card-box">
+        <div id="requests-list">
+          <p class="empty-state">Loading requests...</p>
+        </div>
+        <div class="new-request-form">
+          <p style="font-weight:600; font-size:0.92rem;">Submit a new request</p>
+          <form id="request-form" style="display:flex; flex-direction:column; gap:14px;">
+            <input type="text" id="request-title" placeholder="Request title (e.g. Update Instagram bio)" required>
+            <textarea id="request-description" rows="3" placeholder="Add any details we should know..."></textarea>
+            <button type="submit" class="btn btn-green" style="align-self:flex-start;">Submit Request</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY (PRODUCTS & SERVICES) TAB -->
+    <div class="tab-panel" id="tab-inventory">
+      <div class="card-box" id="inventory-upgrade-card" style="display:none; text-align:center; padding:48px 24px;">
+        <h3 style="font-size:1.1rem; margin-bottom:10px;">📦 Products, Services &amp; Point of Sale</h3>
+        <p style="color:var(--slate); max-width:420px; margin:0 auto 20px;">Manage your catalog and run sales through a real checkout screen — available on Pro and Enterprise plans.</p>
+        <a href="https://wa.me/2348117090999" target="_blank" rel="noopener" class="btn btn-green">Upgrade My Plan</a>
+      </div>
+      <div id="inventory-manager" style="display:none;">
+        <div class="card-box" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h3 style="font-size:1rem; margin-bottom:4px;">Your Products &amp; Services</h3>
+            <p style="font-size:0.85rem; color:var(--slate);">Manage what you sell. Ready to sell? Open the checkout screen.</p>
+          </div>
+          <a href="pos.html" class="btn btn-green">🧾 Open POS Checkout</a>
+        </div>
+        <div class="card-box">
+          <div id="inventory-list"><p class="empty-state">Loading...</p></div>
+          <div class="upload-row">
+            <div class="field">
+              <label>Type</label>
+              <select id="inv-type">
+                <option value="product">Product</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
+            <div class="field"><label>Code (optional)</label><input type="text" id="inv-code" placeholder="e.g. TS-BLU-M"></div>
+            <div class="field"><label>Name</label><input type="text" id="inv-name" placeholder="e.g. Blue T-Shirt (M)"></div>
+            <div class="field"><label>Category</label><input type="text" id="inv-category"></div>
+            <div class="field"><label>Brand</label><input type="text" id="inv-brand"></div>
+          </div>
+          <div class="upload-row">
+            <div class="field" id="inv-unit-wrap"><label>Unit type</label><input type="text" id="inv-unit" placeholder="e.g. pcs, kg, carton" value="unit"></div>
+            <div class="field"><label>Cost price (₦)</label><input type="number" id="inv-cost" step="0.01" min="0"></div>
+            <div class="field"><label>Selling price (₦)</label><input type="number" id="inv-selling" step="0.01" min="0"></div>
+            <div class="field"><label>Minimum price (₦)</label><input type="number" id="inv-min-price" step="0.01" min="0"></div>
+          </div>
+          <div class="upload-row" id="inv-stock-row">
+            <div class="field"><label>Quantity in stock</label><input type="number" id="inv-quantity" value="0" min="0"></div>
+            <div class="field"><label>Low stock alert level</label><input type="number" id="inv-low-stock" value="5" min="0"></div>
+            <div class="field"><label>Image</label><input type="file" id="inv-image" accept="image/*"></div>
+            <button class="btn btn-green" id="add-inventory-btn">Add Item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT TAB -->
+    <div class="tab-panel" id="tab-account">
+      <div class="card-box">
+        <h3 style="font-size:1rem; margin-bottom:16px;">Your Details</h3>
+        <div class="new-request-form" style="margin-top:0; padding-top:0; border-top:none;">
+          <input type="text" id="acc-business-name" placeholder="Business name">
+          <input type="text" id="acc-contact-name" placeholder="Contact name">
+          <input type="tel" id="acc-phone" placeholder="Phone">
+          <input type="email" id="acc-email" disabled style="opacity:0.6;">
+          <button id="save-profile-btn" class="btn btn-green" style="align-self:flex-start;">Save Changes</button>
+          <p id="profile-save-msg" style="font-size:0.85rem; color:var(--slate);"></p>
+        </div>
+      </div>
+
+      <div class="card-box">
+        <h3 style="font-size:1rem; margin-bottom:16px;">Change Password</h3>
+        <div class="new-request-form" style="margin-top:0; padding-top:0; border-top:none;">
+          <input type="password" id="acc-new-password" placeholder="New password" minlength="6">
+          <input type="password" id="acc-confirm-password" placeholder="Confirm new password" minlength="6">
+          <button id="save-password-btn" class="btn btn-green" style="align-self:flex-start;">Update Password</button>
+          <p id="password-save-msg" style="font-size:0.85rem; color:var(--slate);"></p>
+        </div>
       </div>
     </div>
   </div>
@@ -192,13 +208,14 @@
   let currentUser = null;
   let pendingAttachment = null;
 
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.client-nav-link[data-tab]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.client-nav-link[data-tab]').forEach(l => l.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'messages') markMessagesRead();
+      link.classList.add('active');
+      document.getElementById('tab-' + link.dataset.tab).classList.add('active');
+      if (link.dataset.tab === 'messages') markMessagesRead();
     });
   });
 
@@ -238,6 +255,12 @@
     document.getElementById('acc-phone').value = profile.phone || '';
     document.getElementById('acc-email').value = profile.email || '';
 
+    if (window.location.hash) {
+      const tab = window.location.hash.replace('#', '');
+      const link = document.querySelector(`.client-nav-link[data-tab="${tab}"]`);
+      if (link) link.click();
+    }
+
     loadOverview();
     loadMessages();
     loadReports();
@@ -266,7 +289,7 @@
     document.getElementById('ov-reports').textContent = reports.length;
     document.getElementById('ov-unread').textContent = unreadCount;
 
-    if (unreadCount > 0) document.getElementById('messages-tab-dot').style.display = 'block';
+    if (unreadCount > 0) document.getElementById('messages-tab-dot').style.display = 'inline-block';
 
     const { data: allMessagesCheck } = await supabaseClient
       .from('messages').select('id').eq('client_id', currentUser.id).limit(1);
@@ -508,13 +531,19 @@
     }
   });
 
-  // ---- Inventory (paid feature) ----
+  // ---- Products & Services (paid feature) ----
   function renderInventoryGate() {
     const isPaid = currentUser.plan === 'pro' || currentUser.plan === 'enterprise';
     document.getElementById('inventory-upgrade-card').style.display = isPaid ? 'none' : 'block';
     document.getElementById('inventory-manager').style.display = isPaid ? 'block' : 'none';
     if (isPaid) loadInventory();
   }
+
+  document.getElementById('inv-type').addEventListener('change', (e) => {
+    const isService = e.target.value === 'service';
+    document.getElementById('inv-stock-row').style.display = isService ? 'none' : 'flex';
+    document.getElementById('inv-unit-wrap').style.display = isService ? 'none' : 'block';
+  });
 
   async function loadInventory() {
     const { data, error } = await supabaseClient
@@ -525,23 +554,26 @@
 
     const list = document.getElementById('inventory-list');
     if (error || !data || data.length === 0) {
-      list.innerHTML = '<p class="empty-state">No products yet. Add your first one below.</p>';
+      list.innerHTML = '<p class="empty-state">No products or services yet. Add your first one below.</p>';
       return;
     }
     list.innerHTML = data.map(item => {
-      const low = item.quantity <= (item.low_stock_threshold || 5);
+      const isService = item.item_type === 'service';
+      const low = !isService && item.quantity <= (item.low_stock_threshold || 5);
       return `
         <div class="list-item">
           <div style="display:flex; gap:12px; align-items:center;">
             ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" style="width:44px; height:44px; border-radius:8px; object-fit:cover;">` : ''}
             <div>
-              <h4>${escapeHtml(item.name)} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''} ${!item.is_active ? '<span class="status-badge status-paused" style="margin-left:6px; background:#EEF0F3; color:var(--slate);">Inactive</span>' : ''}</h4>
-              <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}Qty: ${item.quantity}${item.selling_price ? ' · ₦' + Number(item.selling_price).toLocaleString() : ''}</p>
+              <h4>${escapeHtml(item.name)} ${isService ? '<span class="status-badge status-in_progress" style="margin-left:8px;">Service</span>' : ''} ${low ? '<span class="status-badge status-open" style="margin-left:8px;">Low stock</span>' : ''} ${!item.is_active ? '<span class="status-badge status-paused" style="margin-left:6px; background:#EEF0F3; color:var(--slate);">Inactive</span>' : ''}</h4>
+              <p>${item.product_code ? escapeHtml(item.product_code) + ' · ' : ''}${item.category ? escapeHtml(item.category) + ' · ' : ''}${isService ? '' : 'Qty: ' + item.quantity + ' · '}${item.selling_price ? '₦' + Number(item.selling_price).toLocaleString() : ''}</p>
             </div>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
+            ${!isService ? `
             <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 10px;" data-adjust="-1" data-id="${item.id}">−</button>
             <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7; padding:6px 10px;" data-adjust="1" data-id="${item.id}">+</button>
+            ` : ''}
             <button class="btn btn-outline" style="color:#791F1F; border-color:#DDE1E7; padding:6px 10px;" data-delete="${item.id}">Delete</button>
           </div>
         </div>
@@ -559,15 +591,16 @@
 
     list.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Delete this product? (If it has past sales, deletion will be blocked automatically.)')) return;
+        if (!confirm('Delete this item? (If it has past sales, deletion will be blocked automatically.)')) return;
         const { error } = await supabaseClient.from('products').delete().eq('id', btn.dataset.delete);
-        if (error) { alert('Could not delete: this product may have past sales. Consider marking it inactive instead.'); return; }
+        if (error) { alert('Could not delete: this item may have past sales. Consider marking it inactive instead.'); return; }
         loadInventory();
       });
     });
   }
 
   document.getElementById('add-inventory-btn').addEventListener('click', async () => {
+    const item_type = document.getElementById('inv-type').value;
     const product_code = document.getElementById('inv-code').value.trim();
     const name = document.getElementById('inv-name').value.trim();
     const category = document.getElementById('inv-category').value.trim();
@@ -576,12 +609,12 @@
     const cost_price = parseFloat(document.getElementById('inv-cost').value) || null;
     const selling_price = parseFloat(document.getElementById('inv-selling').value) || null;
     const minimum_price = parseFloat(document.getElementById('inv-min-price').value) || null;
-    const quantity = parseInt(document.getElementById('inv-quantity').value) || 0;
+    const quantity = item_type === 'service' ? 0 : (parseInt(document.getElementById('inv-quantity').value) || 0);
     const low_stock_threshold = parseInt(document.getElementById('inv-low-stock').value) || 5;
     const imageInput = document.getElementById('inv-image');
     const btn = document.getElementById('add-inventory-btn');
 
-    if (!name) { alert('Please enter a product name.'); return; }
+    if (!name) { alert('Please enter a name.'); return; }
 
     btn.textContent = 'Adding...';
     let image_url = null;
@@ -597,11 +630,11 @@
     }
 
     const { error } = await supabaseClient.from('products').insert({
-      client_id: currentUser.id, product_code, name, category, brand, unit_type,
+      client_id: currentUser.id, item_type, product_code, name, category, brand, unit_type,
       cost_price, selling_price, minimum_price, quantity, low_stock_threshold, image_url
     });
 
-    btn.textContent = 'Add Product';
+    btn.textContent = 'Add Item';
     if (!error) {
       ['inv-code','inv-name','inv-category','inv-brand','inv-cost','inv-selling','inv-min-price'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('inv-unit').value = 'unit';
@@ -610,7 +643,7 @@
       imageInput.value = '';
       loadInventory();
     } else {
-      alert('Could not add product: ' + error.message);
+      alert('Could not add item: ' + error.message);
     }
   });
 </script>
