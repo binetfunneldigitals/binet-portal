@@ -184,6 +184,8 @@
           <input type="text" id="acc-business-name" placeholder="Business name">
           <input type="text" id="acc-contact-name" placeholder="Contact name">
           <input type="tel" id="acc-phone" placeholder="Phone">
+          <input type="text" id="acc-address" placeholder="Business address (shown on receipts)">
+          <input type="text" id="acc-vat" placeholder="VAT number (optional, shown on receipts)">
           <input type="email" id="acc-email" disabled style="opacity:0.6;">
           <button id="save-profile-btn" class="btn btn-green" style="align-self:flex-start;">Save Changes</button>
           <p id="profile-save-msg" style="font-size:0.85rem; color:var(--slate);"></p>
@@ -253,6 +255,8 @@
     document.getElementById('acc-business-name').value = profile.business_name || '';
     document.getElementById('acc-contact-name').value = profile.contact_name || '';
     document.getElementById('acc-phone').value = profile.phone || '';
+    document.getElementById('acc-address').value = profile.address || '';
+    document.getElementById('acc-vat').value = profile.vat_number || '';
     document.getElementById('acc-email').value = profile.email || '';
 
     if (window.location.hash) {
@@ -499,10 +503,12 @@
     const business_name = document.getElementById('acc-business-name').value.trim();
     const contact_name = document.getElementById('acc-contact-name').value.trim();
     const phone = document.getElementById('acc-phone').value.trim();
+    const address = document.getElementById('acc-address').value.trim();
+    const vat_number = document.getElementById('acc-vat').value.trim();
     const msgEl = document.getElementById('profile-save-msg');
 
     const { error } = await supabaseClient.from('profiles')
-      .update({ business_name, contact_name, phone })
+      .update({ business_name, contact_name, phone, address, vat_number })
       .eq('id', currentUser.id);
 
     msgEl.textContent = error ? 'Error: ' + error.message : 'Saved!';
@@ -510,6 +516,8 @@
       currentUser.business_name = business_name;
       currentUser.contact_name = contact_name;
       currentUser.phone = phone;
+      currentUser.address = address;
+      currentUser.vat_number = vat_number;
       document.getElementById('user-label').textContent = business_name || currentUser.email;
     }
   });

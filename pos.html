@@ -46,16 +46,50 @@
   .cart-totals .row.total{ font-size:1.1rem; font-weight:700; color:var(--navy); margin-top:8px; }
   .pos-field label{ font-size:0.82rem; font-weight:600; display:block; margin-bottom:5px; }
   .pos-field input, .pos-field select{ width:100%; padding:9px 10px; border-radius:7px; border:1px solid #DDE1E7; background:var(--off-white); font-size:0.88rem; margin-bottom:10px; }
-  .receipt-modal{ position:fixed; inset:0; background:rgba(10,22,40,0.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .receipt-modal{ position:fixed; inset:0; background:rgba(10,22,40,0.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; overflow-y:auto; }
   .receipt-modal.open{ display:flex; }
-  .receipt-box{ background:var(--white); border-radius:14px; padding:32px; max-width:380px; width:100%; max-height:85vh; overflow-y:auto; }
-  .receipt-actions{ display:flex; gap:10px; margin-top:10px; }
+  .receipt-box{ background:var(--white); border-radius:14px; overflow:hidden; max-width:560px; width:100%; max-height:90vh; overflow-y:auto; }
+  .receipt-actions{ display:flex; gap:10px; padding:0 32px 24px; }
   .receipt-actions .btn{ flex:1; justify-content:center; font-size:0.85rem; padding:11px; }
+  .inv-header{ background:var(--navy); color:#fff; padding:32px 32px 22px; }
+  .inv-header-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .inv-biz-name{ font-family:'Space Grotesk',sans-serif; font-size:1.3rem; font-weight:700; margin-bottom:8px; }
+  .inv-biz-details{ font-size:0.78rem; color:#B9C2D1; line-height:1.6; }
+  .inv-title{ font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; text-align:right; }
+  .inv-meta{ font-size:0.78rem; color:#B9C2D1; text-align:right; line-height:1.7; margin-top:6px; }
+  .inv-accent-bar{ height:4px; background:var(--gold); }
+  .inv-body{ padding:24px 32px 32px; }
+  .inv-boxes{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px; }
+  .inv-box{ background:var(--off-white); border-radius:10px; overflow:hidden; }
+  .inv-box-head{ background:var(--navy); color:#fff; font-size:0.72rem; font-weight:700; letter-spacing:0.04em; padding:8px 14px; }
+  .inv-box-body{ padding:12px 14px; font-size:0.85rem; }
+  .inv-box-body .label{ color:var(--slate); font-size:0.75rem; }
+  .inv-box-body .val{ font-weight:600; color:var(--navy); }
+  .inv-box-body .paid{ color:var(--green); font-weight:700; }
+  .inv-box-body .partial{ color:var(--gold); font-weight:700; }
+  .inv-box-body .unpaid{ color:#D64545; font-weight:700; }
+  .inv-table{ width:100%; border-collapse:collapse; margin-bottom:20px; font-size:0.85rem; }
+  .inv-table thead th{ background:var(--navy); color:#fff; text-align:left; padding:9px 12px; font-size:0.72rem; letter-spacing:0.03em; }
+  .inv-table thead th.num{ text-align:right; }
+  .inv-table tbody td{ padding:10px 12px; border-bottom:1px solid #EEF0F3; }
+  .inv-table tbody td.num{ text-align:right; }
+  .inv-totals-row{ display:flex; justify-content:flex-end; align-items:center; gap:24px; margin-bottom:8px; }
+  .inv-stamp-wrap{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .inv-stamp{
+    width:74px; height:74px; border-radius:50%; border:3px solid; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:0.72rem; letter-spacing:0.05em; transform:rotate(-8deg);
+  }
+  .inv-totals{ text-align:right; }
+  .inv-totals .row{ display:flex; justify-content:space-between; gap:30px; font-size:0.85rem; color:var(--slate); margin-bottom:5px; }
+  .inv-totals .row.grand{ background:var(--navy); color:#fff; font-size:1rem; font-weight:700; padding:9px 14px; border-radius:8px; margin-top:8px; }
+  .inv-footer{ border-top:1px dashed #DDE1E7; margin-top:22px; padding-top:16px; text-align:center; }
+  .inv-footer p{ font-size:0.82rem; color:var(--slate); }
   @media (max-width:1000px){ .pos-shell{ grid-template-columns:1fr; } .pos-cart{ border-left:none; border-top:1px solid #E7E9EE; } }
   @media print{
+    @page{ size:A4; margin:12mm; }
     body *{ visibility:hidden; }
     #receipt-box, #receipt-box *{ visibility:visible; }
-    #receipt-box{ position:absolute; top:0; left:0; width:100%; box-shadow:none; }
+    #receipt-box{ position:absolute; top:0; left:0; width:100%; max-width:100%; box-shadow:none; border-radius:0; }
     .receipt-actions{ display:none; }
   }
 </style>
@@ -368,14 +402,34 @@
     loadProducts();
   });
 
+  function invoiceNumber(sale) {
+    const d = new Date(sale.created_at);
+    const dateStr = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    return `INV-${dateStr}-${String(sale.invoice_no || 0).padStart(4, '0')}`;
+  }
+
+  function paymentStatus(sale) {
+    if (!sale.is_credit || sale.balance <= 0) return { label: 'PAID', cls: 'paid' };
+    if (sale.amount_paid > 0) return { label: 'PARTIAL', cls: 'partial' };
+    return { label: 'UNPAID', cls: 'unpaid' };
+  }
+
   function buildReceiptText(sale, items) {
+    const status = paymentStatus(sale);
     let text = `🧾 *${currentUser.business_name || 'BINet Funnel Digitals'}*\n`;
+    text += `Invoice: ${invoiceNumber(sale)}\n`;
     text += `${new Date(sale.created_at).toLocaleString()}\n\n`;
-    items.forEach(i => { text += `${i.name} x${i.quantity} — ${money(i.unit_price * i.quantity)}\n`; });
+    items.forEach(i => {
+      if (i.isService) {
+        text += `${i.name} — ${money(i.unit_price)}\n`;
+      } else {
+        text += `${i.name} x${i.quantity} — ${money(i.unit_price * i.quantity)}\n`;
+      }
+    });
     text += `\nSubtotal: ${money(sale.subtotal)}`;
     if (sale.discount > 0) text += `\nDiscount: -${money(sale.discount)}`;
     text += `\n*Total: ${money(sale.total)}*`;
-    text += `\nPayment: ${sale.payment_method.replace('_',' ')}`;
+    text += `\nPayment: ${sale.payment_method.replace('_',' ')} (${status.label})`;
     if (sale.is_credit) {
       text += `\nPaid now: ${money(sale.amount_paid)}`;
       text += `\nBalance owed: ${money(sale.balance)}`;
@@ -385,31 +439,95 @@
   }
 
   function showReceipt(sale, items) {
+    const status = paymentStatus(sale);
+    const biz = currentUser;
     const box = document.getElementById('receipt-box');
+
     box.innerHTML = `
-      <div style="text-align:center; margin-bottom:20px;">
-        <img src="assets/logo.png" style="height:32px; margin-bottom:10px;">
-        <h3 style="font-size:1.1rem;">${escapeHtml(currentUser.business_name || 'Receipt')}</h3>
-        <p style="font-size:0.8rem; color:var(--slate);">${new Date(sale.created_at).toLocaleString()}</p>
+      <div class="inv-header">
+        <div class="inv-header-top">
+          <div>
+            <div class="inv-biz-name">${escapeHtml(biz.business_name || 'Your Business')}</div>
+            <div class="inv-biz-details">
+              ${biz.address ? escapeHtml(biz.address) + '<br>' : ''}
+              ${biz.phone ? 'Phone: ' + escapeHtml(biz.phone) + '<br>' : ''}
+              ${biz.vat_number ? 'VAT Number: ' + escapeHtml(biz.vat_number) : ''}
+            </div>
+          </div>
+          <div>
+            <div class="inv-title">INVOICE</div>
+            <div class="inv-meta">
+              ${invoiceNumber(sale)}<br>
+              Date: ${new Date(sale.created_at).toLocaleDateString()}<br>
+              Time: ${new Date(sale.created_at).toLocaleTimeString()}<br>
+              Paid By: ${sale.payment_method.replace('_',' ')}
+            </div>
+          </div>
+        </div>
       </div>
-      <div style="border-top:1px dashed #DDE1E7; padding-top:10px; margin-bottom:10px;">
-        ${items.map(i => `<div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;"><span>${escapeHtml(i.name)} x${i.quantity}</span><span>${money(i.unit_price * i.quantity)}</span></div>`).join('')}
+      <div class="inv-accent-bar"></div>
+
+      <div class="inv-body">
+        <div class="inv-boxes">
+          <div class="inv-box">
+            <div class="inv-box-head">BILL TO</div>
+            <div class="inv-box-body">
+              <div class="val">${escapeHtml(sale.customer_name || 'Walk-in Customer')}</div>
+              ${sale.customer_phone ? `<div class="label">${escapeHtml(sale.customer_phone)}</div>` : ''}
+            </div>
+          </div>
+          <div class="inv-box">
+            <div class="inv-box-head">PAYMENT DETAILS</div>
+            <div class="inv-box-body">
+              <div class="label">Method: <span class="val">${sale.payment_method.replace('_',' ').toUpperCase()}</span></div>
+              <div class="label" style="margin-top:4px;">Status: <span class="${status.cls}">${status.label}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="num">Unit Price</th>
+              <th class="num">Qty</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(i => `
+              <tr>
+                <td>${escapeHtml(i.name)}</td>
+                <td class="num">${i.isService ? '' : money(i.unit_price)}</td>
+                <td class="num">${i.isService ? '' : i.quantity}</td>
+                <td class="num">${money(i.unit_price * i.quantity)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="inv-stamp-wrap">
+          <div class="inv-stamp ${status.cls}" style="border-color:currentColor; color:${status.cls === 'paid' ? 'var(--green)' : status.cls === 'partial' ? 'var(--gold)' : '#D64545'};">${status.label}</div>
+          <div class="inv-totals">
+            <div class="row"><span>Subtotal</span><span>${money(sale.subtotal)}</span></div>
+            ${sale.discount > 0 ? `<div class="row"><span>Discount</span><span>-${money(sale.discount)}</span></div>` : ''}
+            ${sale.is_credit ? `<div class="row"><span>Paid</span><span>${money(sale.amount_paid)}</span></div><div class="row"><span>Balance</span><span>${money(sale.balance)}</span></div>` : ''}
+            <div class="row grand"><span>TOTAL</span><span>${money(sale.total)}</span></div>
+          </div>
+        </div>
+
+        <div class="inv-footer">
+          <p><strong>Thank you for your business!</strong></p>
+        </div>
       </div>
-      <div style="border-top:1px dashed #DDE1E7; border-bottom:1px dashed #DDE1E7; padding:14px 0; margin-bottom:14px;">
-        <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;"><span>Subtotal</span><span>${money(sale.subtotal)}</span></div>
-        <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px;"><span>Discount</span><span>-${money(sale.discount)}</span></div>
-        <div style="display:flex; justify-content:space-between; font-size:1.05rem; font-weight:700;"><span>Total</span><span>${money(sale.total)}</span></div>
-      </div>
-      <div style="font-size:0.85rem; color:var(--slate); margin-bottom:20px;">
-        <p>Payment: ${sale.payment_method.replace('_',' ')}</p>
-        ${sale.is_credit ? `<p>Paid now: ${money(sale.amount_paid)}</p><p>Balance owed: ${money(sale.balance)}</p>` : ''}
-        ${sale.customer_name ? `<p>Customer: ${escapeHtml(sale.customer_name)}</p>` : ''}
-      </div>
+
       <div class="receipt-actions">
         <button class="btn btn-outline" style="color:var(--navy); border-color:#DDE1E7;" id="print-receipt-btn">🖨️ Print</button>
         <button class="btn btn-green" id="whatsapp-receipt-btn">📱 WhatsApp</button>
       </div>
-      <button class="btn btn-outline" style="width:100%; justify-content:center; color:var(--navy); border-color:#DDE1E7; margin-top:10px;" onclick="document.getElementById('receipt-modal').classList.remove('open')">Close</button>
+      <div style="padding:0 32px 24px;">
+        <button class="btn btn-outline" style="width:100%; justify-content:center; color:var(--navy); border-color:#DDE1E7;" onclick="document.getElementById('receipt-modal').classList.remove('open')">Close</button>
+      </div>
     `;
     document.getElementById('receipt-modal').classList.add('open');
 
